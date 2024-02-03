@@ -1,0 +1,102 @@
+{
+  "Report": {
+    "$": {
+      "xmlns": "http://xml.kishou.go.jp/jmaxml1/",
+      "xmlns:jmx": "http://xml.kishou.go.jp/jmaxml1/"
+    },
+    "Control": [
+      {
+        "Title": ["緊急地震速報（地震動予報）"],
+        "DateTime": ["2024-01-02T08:53:01Z"],
+        "Status": ["通常"],
+        "EditorialOffice": ["気象庁本庁"],
+        "PublishingOffice": ["気象庁"]
+      }
+    ],
+    "Head": [
+      {
+        "$": { "xmlns": "http://xml.kishou.go.jp/jmaxml1/informationBasis1/" },
+        "Title": ["緊急地震速報（地震動予報）"],
+        "ReportDateTime": ["2024-01-02T17:53:01+09:00"],
+        "TargetDateTime": ["2024-01-02T17:53:01+09:00"],
+        "EventID": ["20240102175209"],
+        "InfoType": ["発表"],
+        "Serial": ["7"],
+        "InfoKind": ["緊急地震速報"],
+        "InfoKindVersion": ["1.2_0"],
+        "Headline": [{ "Text": [""] }]
+      }
+    ],
+    "Body": [
+      {
+        "$": {
+          "xmlns": "http://xml.kishou.go.jp/jmaxml1/body/seismology1/",
+          "xmlns:jmx_eb": "http://xml.kishou.go.jp/jmaxml1/elementBasis1/"
+        },
+        "NextAdvisory": ["この情報をもって、緊急地震速報：最終報とします。"],
+        "Earthquake": [
+          {
+            "OriginTime": ["2024-01-02T17:52:02+09:00"],
+            "ArrivalTime": ["2024-01-02T17:52:09+09:00"],
+            "Hypocenter": [
+              {
+                "Area": [
+                  {
+                    "Name": ["佐渡付近"],
+                    "Code": [{ "_": "498", "$": { "type": "震央地名" } }],
+                    "jmx_eb:Coordinate": [
+                      {
+                        "_": "+37.7+137.7-20000/",
+                        "$": {
+                          "description": "北緯３７．７度　東経１３７．７度　深さ　２０ｋｍ",
+                          "datum": "日本測地系"
+                        }
+                      }
+                    ],
+                    "ReduceName": ["佐渡付近"],
+                    "ReduceCode": [
+                      { "_": "9779", "$": { "type": "短縮用震央地名" } }
+                    ],
+                    "LandOrSea": ["海域"]
+                  }
+                ],
+                "Accuracy": [
+                  {
+                    "Epicenter": [
+                      { "_": "NaN", "$": { "rank": "4", "rank2": "9" } }
+                    ],
+                    "Depth": [{ "_": "NaN", "$": { "rank": "4" } }],
+                    "MagnitudeCalculation": [
+                      { "_": "NaN", "$": { "rank": "2" } }
+                    ],
+                    "NumberOfMagnitudeCalculation": ["0"]
+                  }
+                ]
+              }
+            ],
+            "jmx_eb:Magnitude": [
+              { "_": "4.1", "$": { "type": "Mj", "description": "Ｍ４．１" } }
+            ]
+          }
+        ],
+        "Intensity": [
+          {
+            "Forecast": [
+              {
+                "ForecastInt": [{ "From": ["3"], "To": ["3"] }],
+                "ForecastLgInt": [{ "From": ["0"], "To": ["0"] }],
+                "Appendix": [
+                  {
+                    "MaxIntChange": ["0"],
+                    "MaxLgIntChange": ["0"],
+                    "MaxIntChangeReason": ["0"]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

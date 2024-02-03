@@ -1,0 +1,282 @@
+[
+  {
+    "_originalId": "d4b1cfaaae6eae0e4e2872a70efb2f6727c4c4dcc464ef92b886246791b1f7f5fbea934b3ba34a69a29e883f7e69bf95",
+    "_schema": { "type": "eew-information", "version": "1.0.0" },
+    "type": "緊急地震速報（地震動予報）",
+    "title": "緊急地震速報（地震動予報）",
+    "status": "通常",
+    "infoType": "発表",
+    "editorialOffice": "大阪管区気象台",
+    "publishingOffice": ["気象庁"],
+    "pressDateTime": "2024-01-08T16:20:13Z",
+    "reportDateTime": "2024-01-09T01:20:13+09:00",
+    "targetDateTime": "2024-01-09T01:20:13+09:00",
+    "eventId": "20240109012003",
+    "serialNo": "1",
+    "infoKind": "緊急地震速報",
+    "infoKindVersion": "1.2_0",
+    "headline": null,
+    "body": {
+      "isLastInfo": false,
+      "isCanceled": false,
+      "isWarning": false,
+      "earthquake": {
+        "originTime": "2024-01-09T01:20:00+09:00",
+        "arrivalTime": "2024-01-09T01:20:03+09:00",
+        "hypocenter": {
+          "code": "495",
+          "name": "能登半島沖",
+          "coordinate": {
+            "latitude": { "text": "37.3˚N", "value": "37.3000" },
+            "longitude": { "text": "136.7˚E", "value": "136.7000" },
+            "height": { "type": "高さ", "unit": "m", "value": "-20000" },
+            "geodeticSystem": "日本測地系"
+          },
+          "depth": { "type": "深さ", "unit": "km", "value": "20" },
+          "reduce": { "code": "9777", "name": "能登半島沖" },
+          "landOrSea": "海域",
+          "accuracy": {
+            "epicenters": ["4", "4"],
+            "depth": "4",
+            "magnitudeCalculation": "2",
+            "numberOfMagnitudeCalculation": "0"
+          }
+        },
+        "magnitude": { "type": "マグニチュード", "value": "3.5", "unit": "Mj" }
+      },
+      "intensity": {
+        "forecastMaxInt": { "from": "2", "to": "2" },
+        "forecastMaxLgInt": { "from": "0", "to": "0" },
+        "regions": []
+      }
+    }
+  },
+  {
+    "_originalId": "c653bc201e78bc520bfde5c67e05635a0205ebe1b9ce32bcb5df089979671aa9aafb3185057dbc1b56735d75faa487d0",
+    "_schema": { "type": "eew-information", "version": "1.0.0" },
+    "type": "緊急地震速報（地震動予報）",
+    "title": "緊急地震速報（地震動予報）",
+    "status": "通常",
+    "infoType": "発表",
+    "editorialOffice": "大阪管区気象台",
+    "publishingOffice": ["気象庁"],
+    "pressDateTime": "2024-01-08T16:20:13Z",
+    "reportDateTime": "2024-01-09T01:20:13+09:00",
+    "targetDateTime": "2024-01-09T01:20:13+09:00",
+    "eventId": "20240109012003",
+    "serialNo": "2",
+    "infoKind": "緊急地震速報",
+    "infoKindVersion": "1.2_0",
+    "headline": null,
+    "body": {
+      "isLastInfo": false,
+      "isCanceled": false,
+      "isWarning": false,
+      "earthquake": {
+        "originTime": "2024-01-09T01:20:00+09:00",
+        "arrivalTime": "2024-01-09T01:20:03+09:00",
+        "hypocenter": {
+          "code": "495",
+          "name": "能登半島沖",
+          "coordinate": {
+            "latitude": { "text": "37.3˚N", "value": "37.3000" },
+            "longitude": { "text": "136.7˚E", "value": "136.7000" },
+            "height": { "type": "高さ", "unit": "m", "value": "-20000" },
+            "geodeticSystem": "日本測地系"
+          },
+          "depth": { "type": "深さ", "unit": "km", "value": "20" },
+          "reduce": { "code": "9777", "name": "能登半島沖" },
+          "landOrSea": "海域",
+          "accuracy": {
+            "epicenters": ["4", "4"],
+            "depth": "4",
+            "magnitudeCalculation": "2",
+            "numberOfMagnitudeCalculation": "0"
+          }
+        },
+        "magnitude": { "type": "マグニチュード", "value": "3.5", "unit": "Mj" }
+      },
+      "intensity": {
+        "forecastMaxInt": { "from": "2", "to": "2" },
+        "forecastMaxLgInt": { "from": "0", "to": "0" },
+        "appendix": {
+          "maxIntChange": "0",
+          "maxLgIntChange": "0",
+          "maxIntChangeReason": "0"
+        },
+        "regions": []
+      }
+    }
+  },
+  {
+    "_originalId": "8133fd9918047584311e7c1cf6f13c5b9aed094ef572b759ba1f3c7445bc871918521445ed344553062145a437ed623b",
+    "_schema": { "type": "eew-information", "version": "1.0.0" },
+    "type": "緊急地震速報（地震動予報）",
+    "title": "緊急地震速報（地震動予報）",
+    "status": "通常",
+    "infoType": "発表",
+    "editorialOffice": "大阪管区気象台",
+    "publishingOffice": ["気象庁"],
+    "pressDateTime": "2024-01-08T16:20:15Z",
+    "reportDateTime": "2024-01-09T01:20:15+09:00",
+    "targetDateTime": "2024-01-09T01:20:15+09:00",
+    "eventId": "20240109012003",
+    "serialNo": "3",
+    "infoKind": "緊急地震速報",
+    "infoKindVersion": "1.2_0",
+    "headline": null,
+    "body": {
+      "isLastInfo": false,
+      "isCanceled": false,
+      "isWarning": false,
+      "earthquake": {
+        "originTime": "2024-01-09T01:20:01+09:00",
+        "arrivalTime": "2024-01-09T01:20:03+09:00",
+        "hypocenter": {
+          "code": "390",
+          "name": "石川県能登地方",
+          "coordinate": {
+            "latitude": { "text": "37.3˚N", "value": "37.3000" },
+            "longitude": { "text": "136.8˚E", "value": "136.8000" },
+            "height": { "type": "高さ", "unit": "m", "value": "-10000" },
+            "geodeticSystem": "日本測地系"
+          },
+          "depth": { "type": "深さ", "unit": "km", "value": "10" },
+          "reduce": { "code": "9170", "name": "石川県" },
+          "landOrSea": "内陸",
+          "accuracy": {
+            "epicenters": ["4", "4"],
+            "depth": "4",
+            "magnitudeCalculation": "2",
+            "numberOfMagnitudeCalculation": "0"
+          }
+        },
+        "magnitude": { "type": "マグニチュード", "value": "3.5", "unit": "Mj" }
+      },
+      "intensity": {
+        "forecastMaxInt": { "from": "3", "to": "3" },
+        "forecastMaxLgInt": { "from": "0", "to": "0" },
+        "appendix": {
+          "maxIntChange": "0",
+          "maxLgIntChange": "0",
+          "maxIntChangeReason": "0"
+        },
+        "regions": []
+      }
+    }
+  },
+  {
+    "_originalId": "255181334e4dc6883263047f0487ab2e3a5a7fffad345b2bf87c552be8f35ae3833cb8c4a4d74f0e2927253a660b4021",
+    "_schema": { "type": "eew-information", "version": "1.0.0" },
+    "type": "緊急地震速報（地震動予報）",
+    "title": "緊急地震速報（地震動予報）",
+    "status": "通常",
+    "infoType": "発表",
+    "editorialOffice": "大阪管区気象台",
+    "publishingOffice": ["気象庁"],
+    "pressDateTime": "2024-01-08T16:20:34Z",
+    "reportDateTime": "2024-01-09T01:20:34+09:00",
+    "targetDateTime": "2024-01-09T01:20:34+09:00",
+    "eventId": "20240109012003",
+    "serialNo": "4",
+    "infoKind": "緊急地震速報",
+    "infoKindVersion": "1.2_0",
+    "headline": null,
+    "body": {
+      "isLastInfo": false,
+      "isCanceled": false,
+      "isWarning": false,
+      "earthquake": {
+        "originTime": "2024-01-09T01:20:01+09:00",
+        "arrivalTime": "2024-01-09T01:20:03+09:00",
+        "hypocenter": {
+          "code": "390",
+          "name": "石川県能登地方",
+          "coordinate": {
+            "latitude": { "text": "37.3˚N", "value": "37.3000" },
+            "longitude": { "text": "136.8˚E", "value": "136.8000" },
+            "height": { "type": "高さ", "unit": "m", "value": "-10000" },
+            "geodeticSystem": "日本測地系"
+          },
+          "depth": { "type": "深さ", "unit": "km", "value": "10" },
+          "reduce": { "code": "9170", "name": "石川県" },
+          "landOrSea": "内陸",
+          "accuracy": {
+            "epicenters": ["4", "4"],
+            "depth": "4",
+            "magnitudeCalculation": "2",
+            "numberOfMagnitudeCalculation": "0"
+          }
+        },
+        "magnitude": { "type": "マグニチュード", "value": "3.5", "unit": "Mj" }
+      },
+      "intensity": {
+        "forecastMaxInt": { "from": "3", "to": "3" },
+        "forecastMaxLgInt": { "from": "0", "to": "0" },
+        "appendix": {
+          "maxIntChange": "0",
+          "maxLgIntChange": "0",
+          "maxIntChangeReason": "0"
+        },
+        "regions": []
+      }
+    }
+  },
+  {
+    "_originalId": "45060d8ffe4882d48cf15075bd3bdd957c055154856784de8694001158822e7696e840311f5f496b537cbc0edfcd2303",
+    "_schema": { "type": "eew-information", "version": "1.0.0" },
+    "type": "緊急地震速報（地震動予報）",
+    "title": "緊急地震速報（地震動予報）",
+    "status": "通常",
+    "infoType": "発表",
+    "editorialOffice": "大阪管区気象台",
+    "publishingOffice": ["気象庁"],
+    "pressDateTime": "2024-01-08T16:20:44Z",
+    "reportDateTime": "2024-01-09T01:20:44+09:00",
+    "targetDateTime": "2024-01-09T01:20:44+09:00",
+    "eventId": "20240109012003",
+    "serialNo": "5",
+    "infoKind": "緊急地震速報",
+    "infoKindVersion": "1.2_0",
+    "headline": null,
+    "body": {
+      "isLastInfo": true,
+      "isCanceled": false,
+      "isWarning": false,
+      "earthquake": {
+        "originTime": "2024-01-09T01:20:01+09:00",
+        "arrivalTime": "2024-01-09T01:20:03+09:00",
+        "hypocenter": {
+          "code": "390",
+          "name": "石川県能登地方",
+          "coordinate": {
+            "latitude": { "text": "37.2˚N", "value": "37.2000" },
+            "longitude": { "text": "136.8˚E", "value": "136.8000" },
+            "height": { "type": "高さ", "unit": "m", "value": "-10000" },
+            "geodeticSystem": "日本測地系"
+          },
+          "depth": { "type": "深さ", "unit": "km", "value": "10" },
+          "reduce": { "code": "9170", "name": "石川県" },
+          "landOrSea": "内陸",
+          "accuracy": {
+            "epicenters": ["4", "9"],
+            "depth": "4",
+            "magnitudeCalculation": "2",
+            "numberOfMagnitudeCalculation": "0"
+          }
+        },
+        "magnitude": { "type": "マグニチュード", "value": "3.5", "unit": "Mj" }
+      },
+      "intensity": {
+        "forecastMaxInt": { "from": "3", "to": "3" },
+        "forecastMaxLgInt": { "from": "0", "to": "0" },
+        "appendix": {
+          "maxIntChange": "0",
+          "maxLgIntChange": "0",
+          "maxIntChangeReason": "0"
+        },
+        "regions": []
+      }
+    }
+  }
+]

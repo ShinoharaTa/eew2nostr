@@ -1,0 +1,49 @@
+{
+  "name": "eew2nostr",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "npm run build && node dist/index.js",
+    "test:event": "npm run build && node dist/index.js --publish=true",
+    "test": "jest",
+    "lint:code": "biome lint ./",
+    "lint:style": "biome format ./",
+    "fix:style": "biome format --write ./",
+    "fix:code": "biome lint --apply ./"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.7",
+    "@babel/preset-env": "^7.23.7",
+    "@babel/preset-typescript": "^7.23.3",
+    "@types/jest": "^29.5.11",
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^20.10.6",
+    "jest": "^29.7.0",
+    "minimist": "^1.2.8",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@biomejs/biome": "1.5.1",
+    "@types/ws": "^8.5.10",
+    "@types/xml2js": "^0.4.14",
+    "axios": "^1.6.3",
+    "date-fns": "^3.0.6",
+    "dotenv": "^16.3.1",
+    "nostr-tools": "^1.1.2",
+    "websocket-polyfill": "^0.0.3",
+    "ws": "^8.16.0",
+    "xml2js": "^0.6.2"
+  }
+}
