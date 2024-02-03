@@ -45,6 +45,7 @@ export const publishEEW = async (
     created_at: Math.floor(time.getTime() / 1000),
   };
   const post = finishEvent(ev, HEX ?? "");
+  console.log(post);
   await Promise.any(pool.publish(isTest ? testRelays : relays, post));
   return post.id;
 };

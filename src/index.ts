@@ -1,6 +1,7 @@
 import axios from "axios";
 import dotenv from "dotenv";
 import minimist from "minimist";
+import { setTimeout } from "timers/promises";
 import WebSocket from "ws";
 import { decompressData, eewReport, generateEEWMessage } from "./eew.js";
 import { publish, publishEEW } from "./nostr.js";
@@ -12,8 +13,6 @@ const args = minimist(process.argv.slice(2));
 const isPublishTest = args.publish === "true";
 
 const eewState: { [key: string]: string } = {};
-
-await publish("EEW System start", new Date());
 
 // WebSocket接続の開始
 const startWebSocket = (url: string) => {
@@ -48,44 +47,66 @@ const startWebSocket = (url: string) => {
   });
 };
 
-if (isPublishTest) {
+const getArray = (array: string[], count: number) => {
+  const index = count % array.length;
+  return array[index];
+};
+const magnitude = ["1.0", "2.1", "3.3", "4.5", "5.6", "6.8", "7.0", "8.2"];
+const forecast = ["3", "4", "5-", "5+", "6-", "6+", "7", "over", "不明"];
+
+const publich_test_mode = async () => {
   console.log("eew publish test start");
   const getNow = () => Math.floor(Date.now() / 1000);
-  const count = 1;
   const now = new Date();
-  const content: eewReport = {
-    id: `time_${getNow()}`,
-    serial: count,
-    originTime: now,
-    reportTime: new Date(),
-    place: "shinoharaDC",
-    latitude: 35.687,
-    longitude: 139.725,
-    depth: 10,
-    magnitude: "3.1",
-    forecast: "3",
-  };
-  await publishEEW(JSON.stringify(content), content.reportTime, true);
+  try {
+    for (let count = 0; count < 10; count++) {
+      const content: eewReport = {
+        id: `time_${getNow()}`,
+        serial: count,
+        originTime: now,
+        reportTime: new Date(),
+        place: "shinoharaDC",
+        latitude: 35.687,
+        longitude: 139.725,
+        depth: 10,
+        magnitude: getArray(magnitude, count),
+        forecast: getArray(forecast, count),
+      };
+      await publishEEW(JSON.stringify(content), content.reportTime, true);
+      await setTimeout(2000);
+    }
+  } catch (e) {
+    console.error(e);
+  }
   process.exit();
-}
-
-const params = {
-  classifications: ["eew.forecast"],
-  test: "including",
-  formatMode: "json",
-  types: ["VXSE45"],
 };
 
-axios
-  .post("https://api.dmdata.jp/v2/socket", params, {
-    headers: {
-      Authorization: `Basic ${EEW_TOKEN}`,
-    },
-  })
-  .then((response) => response.data)
-  .then((data) => {
-    startWebSocket(data.websocket.url);
-  })
-  .catch((error) => {
-    console.error(error.response.status, error.response.data);
-  });
+const main = () => {
+  const params = {
+    classifications: ["eew.forecast"],
+    test: "including",
+    formatMode: "json",
+    types: ["VXSE45"],
+  };
+
+  axios
+    .post("https://api.dmdata.jp/v2/socket", params, {
+      headers: {
+        Authorization: `Basic ${EEW_TOKEN}`,
+      },
+    })
+    .then((response) => response.data)
+    .then((data) => {
+      startWebSocket(data.websocket.url);
+    })
+    .catch((error) => {
+      console.error(error.response.status, error.response.data);
+    });
+};
+
+if (isPublishTest) {
+  publich_test_mode();
+} else {
+  await publish("EEW System start", new Date());
+  main();
+}
