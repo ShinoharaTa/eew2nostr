@@ -1,6 +1,7 @@
 import axios from "axios";
 import dotenv from "dotenv";
 import minimist from "minimist";
+import cron from "node-cron";
 import { setTimeout } from "timers/promises";
 import WebSocket from "ws";
 import { decompressData, eewReport, generateEEWMessage } from "./eew.js";
@@ -51,15 +52,15 @@ const getArray = (array: string[], count: number) => {
   const index = count % array.length;
   return array[index];
 };
-const magnitude = ["1.0", "2.1", "3.3", "4.5", "5.6", "6.8", "7.0", "8.2"];
-const forecast = ["3", "4", "5-", "5+", "6-", "6+", "7", "over", "不明"];
+const magnitude = ["3.2", "4.1", "5.0"];
+const forecast = ["4", "5-", "5+"];
 
-const publich_test_mode = async () => {
+const publich_test_mode = async (loop?: boolean) => {
   console.log("eew publish test start");
   const getNow = () => Math.floor(Date.now() / 1000);
   const now = new Date();
   try {
-    for (let count = 0; count < 10; count++) {
+    for (let count = 0; count < 3; count++) {
       const content: eewReport = {
         id: `time_${getNow()}`,
         serial: count,
@@ -68,17 +69,17 @@ const publich_test_mode = async () => {
         place: "shinoharaDC",
         latitude: 35.687,
         longitude: 139.725,
-        depth: 10,
+        depth: 5 * count,
         magnitude: getArray(magnitude, count),
         forecast: getArray(forecast, count),
       };
       await publishEEW(JSON.stringify(content), content.reportTime, true);
-      await setTimeout(2000);
+      await setTimeout(5000);
     }
   } catch (e) {
     console.error(e);
   }
-  process.exit();
+  if (!loop) process.exit();
 };
 
 const main = () => {
@@ -103,6 +104,11 @@ const main = () => {
       console.error(error.response.status, error.response.data);
     });
 };
+
+cron.schedule("*/5 * * * *", () => {
+  console.log("5分ごとに実行するテスト配信データ");
+  publich_test_mode(true);
+});
 
 if (isPublishTest) {
   publich_test_mode();
