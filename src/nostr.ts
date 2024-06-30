@@ -14,19 +14,25 @@ const relays = [
 
 const testRelays = ["wss://relay-jp.shino3.net"];
 
-export const publish = async (
-  content: string,
-  time: Date,
-  targetEventId?: string | null,
-) => {
+export const publish = async (params: {
+  content: string;
+  time: Date;
+  targetEventId?: string | null;
+  mentions?: string[];
+}) => {
   const ev: EventTemplate<1> = {
     kind: 1,
-    content: content,
+    content: params.content,
     tags: [],
-    created_at: Math.floor(time.getTime() / 1000),
+    created_at: Math.floor(params.time.getTime() / 1000),
   };
-  if (targetEventId) {
-    ev.tags.push(["e", targetEventId]);
+  if (params.targetEventId) {
+    ev.tags.push(["e", params.targetEventId]);
+  }
+  if (params.mentions) {
+    params.mentions.map((mention) => {
+      ev.tags.push(["p", mention]);
+    });
   }
   const post = finishEvent(ev, HEX ?? "");
   await Promise.any(pool.publish(relays, post));

@@ -8,8 +8,8 @@ import { decompressData, eewReport, generateEEWMessage } from "./eew.js";
 import { publish, publishEEW } from "./nostr.js";
 
 dotenv.config();
-const { EEW_TOKEN } = process.env;
-
+const { EEW_TOKEN, OWNER } = process.env;
+const owner = OWNER ?? "";
 const args = minimist(process.argv.slice(2));
 const isPublishTest = args.publish === "true";
 
@@ -31,11 +31,11 @@ const startWebSocket = (url: string) => {
         const eewMessage = generateEEWMessage(content);
         // console.log(eewMessage);
         const targetEv = content.id in eewState ? eewState[content.id] : null;
-        eewState[content.id] = await publish(
-          eewMessage,
-          content.reportTime,
-          targetEv,
-        );
+        eewState[content.id] = await publish({
+          content: eewMessage,
+          time: content.reportTime,
+          targetEventId: targetEv,
+        });
         await publishEEW(JSON.stringify(content), content.reportTime);
       } catch (e) {
         console.error(e);
@@ -43,7 +43,12 @@ const startWebSocket = (url: string) => {
     }
   });
 
-  websocket.on("close", () => {
+  websocket.on("close", async () => {
+    await publish({
+      content: "EEW System Connection Closed",
+      time: new Date(),
+    });
+    ["p", "fe9edd5d5c635dd2900f1f86a872e81ce1d6e20bd4e06549f133ae6bf158913b"];
     console.log("WebSocket connection closed");
   });
 };
@@ -66,7 +71,7 @@ const publich_test_mode = async (loop?: boolean) => {
         serial: count,
         originTime: now,
         reportTime: new Date(),
-        place: "shinoharaDC",
+        place: "テスト配信報",
         latitude: 35.687,
         longitude: 139.725,
         depth: 5 * count,
@@ -105,14 +110,18 @@ const main = () => {
     });
 };
 
-cron.schedule("*/5 * * * *", () => {
-  console.log("5分ごとに実行するテスト配信データ");
-  publich_test_mode(true);
-});
+// cron.schedule("*/5 * * * *", () => {
+//   console.log("5分ごとに実行するテスト配信データ");
+//   publich_test_mode(true);
+// });
 
 if (isPublishTest) {
   publich_test_mode();
 } else {
-  await publish("EEW System start", new Date());
+  await publish({
+    content: "EEW System start",
+    time: new Date(),
+    mentions: [owner],
+  });
   main();
 }
