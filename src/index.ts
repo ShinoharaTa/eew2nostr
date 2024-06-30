@@ -47,8 +47,8 @@ const startWebSocket = (url: string) => {
     await publish({
       content: "EEW System Connection Closed",
       time: new Date(),
+      mentions: [owner],
     });
-    ["p", "fe9edd5d5c635dd2900f1f86a872e81ce1d6e20bd4e06549f133ae6bf158913b"];
     console.log("WebSocket connection closed");
   });
 };
