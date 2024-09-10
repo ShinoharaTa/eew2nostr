@@ -50,6 +50,7 @@ const startWebSocket = (url: string) => {
       mentions: [owner],
     });
     console.log("WebSocket connection closed");
+    process.exit();
   });
   websocket.on("error", async (ev) => {
     await publish({
@@ -58,6 +59,7 @@ const startWebSocket = (url: string) => {
       mentions: [owner],
     });
     console.log(ev);
+    process.exit();
   });
 };
 
