@@ -51,6 +51,14 @@ const startWebSocket = (url: string) => {
     });
     console.log("WebSocket connection closed");
   });
+  websocket.on("error", async (ev) => {
+    await publish({
+      content: `EEW System on error.\n${ev.message}`,
+      time: new Date(),
+      mentions: [owner],
+    });
+    console.log(ev);
+  });
 };
 
 const getArray = (array: string[], count: number) => {
