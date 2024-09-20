@@ -5,7 +5,13 @@ import cron from "node-cron";
 import { setTimeout } from "timers/promises";
 import WebSocket from "ws";
 import { decompressData, eewReport, generateEEWMessage } from "./eew.js";
-import { publish, publishEEW } from "./nostr.js";
+import {
+  getNpub,
+  isReplyToUser,
+  publish,
+  publishEEW,
+  subscribe,
+} from "./nostr.js";
 
 dotenv.config();
 const { EEW_TOKEN, OWNER } = process.env;
@@ -118,6 +124,39 @@ const main = () => {
     .catch((error) => {
       console.error(error.response.status, error.response.data);
     });
+
+  subscribe(async (ev) => {
+    try {
+      const isReply = isReplyToUser(ev);
+      if (isReply && ev.pubkey === owner) {
+        const npub = getNpub();
+        if (ev.content.match(new RegExp(`^(nostr:${npub}\\s+)?生きてる？`))) {
+          publish({
+            content: "生きてる",
+            time: new Date(),
+            mentions: [ev.pubkey],
+          });
+        } else if (
+          ev.content.match(new RegExp(`^(nostr:${npub}\\s+)?再起動`))
+        ) {
+          await publish({
+            content: "再起動します。",
+            time: new Date(),
+            mentions: [ev.pubkey],
+          });
+          process.exit();
+        } else {
+          publish({
+            content: "コマンド確認して",
+            time: new Date(),
+            mentions: [ev.pubkey],
+          });
+        }
+      }
+    } catch (ex) {
+      console.error(ex);
+    }
+  });
 };
 
 // cron.schedule("*/5 * * * *", () => {

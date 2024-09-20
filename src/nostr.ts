@@ -1,5 +1,12 @@
 import dotenv from "dotenv";
-import { EventTemplate, SimplePool, finishEvent } from "nostr-tools";
+import {
+  Event,
+  EventTemplate,
+  SimplePool,
+  finishEvent,
+  getPublicKey,
+  nip19,
+} from "nostr-tools";
 import "websocket-polyfill";
 
 dotenv.config();
@@ -8,6 +15,7 @@ const { HEX } = process.env;
 const pool = new SimplePool();
 const relays = [
   "wss://relay-jp.shino3.net",
+  "wss://yabu.me",
   "wss://r.kojira.io",
   "wss://relay-jp.nostr.wirednet.jp",
 ];
@@ -55,3 +63,24 @@ export const publishEEW = async (
   await Promise.any(pool.publish(isTest ? testRelays : relays, post));
   return post.id;
 };
+
+export function subscribe(callback: (ev: Event) => void): void {
+  const sub = pool.sub(relays, [
+    {
+      kinds: [1],
+      since: Math.floor(new Date().getTime() / 1000),
+      "#p": [getPublicKey(HEX ?? "")],
+    },
+  ]);
+  sub.on("event", callback);
+}
+
+export function isReplyToUser(ev: Event): boolean {
+  return (
+    ev.tags.find((tag) => tag.includes("p"))?.[1] === getPublicKey(HEX ?? "")
+  );
+}
+
+export function getNpub(): string {
+  return nip19.npubEncode(getPublicKey(HEX ?? ""));
+}
