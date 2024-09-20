@@ -1,9 +1,11 @@
+import { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post.js";
 import axios from "axios";
 import dotenv from "dotenv";
 import minimist from "minimist";
 import cron from "node-cron";
 import { setTimeout } from "timers/promises";
 import WebSocket from "ws";
+import { BskyInit, BskyPublish } from "./bsky.js";
 import { decompressData, eewReport, generateEEWMessage } from "./eew.js";
 import {
   getNpub,
@@ -20,6 +22,7 @@ const args = minimist(process.argv.slice(2));
 const isPublishTest = args.publish === "true";
 
 const eewState: { [key: string]: string } = {};
+const eewStateBsky: { [key: string]: ReplyRef } = {};
 
 // WebSocket接続の開始
 const startWebSocket = (url: string) => {
@@ -43,6 +46,14 @@ const startWebSocket = (url: string) => {
           targetEventId: targetEv,
         });
         await publishEEW(JSON.stringify(content), content.reportTime);
+        const targetPost =
+          content.id in eewState ? eewStateBsky[content.id] : undefined;
+        const bskyPostResult = await BskyPublish(eewMessage, targetPost);
+        if (bskyPostResult) {
+          eewStateBsky[content.id].parent = bskyPostResult;
+          if (!eewStateBsky[content.id].root)
+            eewStateBsky[content.id].root = bskyPostResult;
+        }
       } catch (e) {
         console.error(e);
       }
@@ -172,5 +183,7 @@ if (isPublishTest) {
     time: new Date(),
     mentions: [owner],
   });
+  await BskyInit();
+  await BskyPublish("EEW System start");
   main();
 }
