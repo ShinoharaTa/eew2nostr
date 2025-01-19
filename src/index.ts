@@ -38,22 +38,28 @@ const startWebSocket = (url: string) => {
       try {
         const content = await decompressData(msg.body);
         const eewMessage = generateEEWMessage(content);
-        // console.log(eewMessage);
-        const targetEv = content.id in eewState ? eewState[content.id] : null;
-        eewState[content.id] = await publish({
-          content: eewMessage,
-          time: content.reportTime,
-          targetEventId: targetEv,
-        });
-        await publishEEW(JSON.stringify(content), content.reportTime);
-        const targetPost =
-          content.id in eewState ? eewStateBsky[content.id] : undefined;
-        const bskyPostResult = await BskyPublish(eewMessage, targetPost);
-        if (bskyPostResult) {
-          eewStateBsky[content.id].parent = bskyPostResult;
-          if (!eewStateBsky[content.id].root)
-            eewStateBsky[content.id].root = bskyPostResult;
-        }
+        await Promise.all([
+          async () => {
+            const targetEv =
+              content.id in eewState ? eewState[content.id] : null;
+            eewState[content.id] = await publish({
+              content: eewMessage,
+              time: content.reportTime,
+              targetEventId: targetEv,
+            });
+            await publishEEW(JSON.stringify(content), content.reportTime);
+          },
+          async () => {
+            const targetPost =
+              content.id in eewState ? eewStateBsky[content.id] : undefined;
+            const bskyPostResult = await BskyPublish(eewMessage, targetPost);
+            if (bskyPostResult) {
+              eewStateBsky[content.id].parent = bskyPostResult;
+              if (!eewStateBsky[content.id].root)
+                eewStateBsky[content.id].root = bskyPostResult;
+            }
+          },
+        ]);
       } catch (e) {
         console.error(e);
       }
