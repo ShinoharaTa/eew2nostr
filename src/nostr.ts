@@ -52,8 +52,8 @@ export const publishEEW = async (
   time: Date,
   isTest?: boolean,
 ) => {
-  const ev: EventTemplate<30078> = {
-    kind: 30078,
+  const ev: EventTemplate<7078> = {
+    kind: 7078,
     content: content,
     tags: [["d", `eew_alert_system_by_shino3${isTest ? "_test" : ""}`]],
     created_at: Math.floor(time.getTime() / 1000),
