@@ -1,8 +1,8 @@
-import { BskyAgent } from "@atproto/api";
-import { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post";
+import { AtpAgent } from "@atproto/api";
+import type { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post";
 import dotenv from "dotenv";
 
-const agent = new BskyAgent({
+const agent = new AtpAgent({
   service: "https://bsky.social",
 });
 

@@ -1,17 +1,17 @@
 import dotenv from "dotenv";
 import {
-  Event,
-  EventTemplate,
+  type Event,
+  type EventTemplate,
   SimplePool,
-  finishEvent,
+  finalizeEvent,
   getPublicKey,
   nip19,
 } from "nostr-tools";
 import "websocket-polyfill";
 
 dotenv.config();
-const { HEX } = process.env;
-
+const HEX = process.env.HEX ?? "";
+const nsec = new Uint8Array(Buffer.from(HEX, "hex"));
 const pool = new SimplePool();
 const relays = [
   "wss://relay-jp.shino3.net",
@@ -28,7 +28,7 @@ export const publish = async (params: {
   targetEventId?: string | null;
   mentions?: string[];
 }) => {
-  const ev: EventTemplate<1> = {
+  const ev: EventTemplate = {
     kind: 1,
     content: params.content,
     tags: [],
@@ -42,7 +42,7 @@ export const publish = async (params: {
       ev.tags.push(["p", mention]);
     });
   }
-  const post = finishEvent(ev, HEX ?? "");
+  const post = finalizeEvent(ev, nsec);
   await Promise.any(pool.publish(relays, post));
   return post.id;
 };
@@ -52,35 +52,33 @@ export const publishEEW = async (
   time: Date,
   isTest?: boolean,
 ) => {
-  const ev: EventTemplate<7078> = {
+  const ev: EventTemplate = {
     kind: 7078,
     content: content,
     tags: [["d", `eew_alert_system_by_shino3${isTest ? "_test" : ""}`]],
     created_at: Math.floor(time.getTime() / 1000),
   };
-  const post = finishEvent(ev, HEX ?? "");
+  const post = finalizeEvent(ev, nsec);
   console.log(post);
   await Promise.any(pool.publish(isTest ? testRelays : relays, post));
   return post.id;
 };
 
-export function subscribe(callback: (ev: Event) => void): void {
-  const sub = pool.sub(relays, [
-    {
-      kinds: [1],
-      since: Math.floor(new Date().getTime() / 1000),
-      "#p": [getPublicKey(HEX ?? "")],
-    },
-  ]);
-  sub.on("event", callback);
-}
+// export function subscribe(callback: (ev: Event) => void): void {
+//   const sub = pool(relays, [
+//     {
+//       kinds: [1],
+//       since: Math.floor(new Date().getTime() / 1000),
+//       "#p": [getPublicKey(nsec)],
+//     },
+//   ]);
+//   sub.on("event", callback);
+// }
 
-export function isReplyToUser(ev: Event): boolean {
-  return (
-    ev.tags.find((tag) => tag.includes("p"))?.[1] === getPublicKey(HEX ?? "")
-  );
-}
+// export function isReplyToUser(ev: Event): boolean {
+//   return ev.tags.find((tag) => tag.includes("p"))?.[1] === getPublicKey(nsec);
+// }
 
-export function getNpub(): string {
-  return nip19.npubEncode(getPublicKey(HEX ?? ""));
-}
+// export function getNpub(): string {
+//   return nip19.npubEncode(getPublicKey(nsec));
+// }

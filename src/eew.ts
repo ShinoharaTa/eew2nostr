@@ -1,4 +1,4 @@
-import { gunzip } from "zlib";
+import { gunzip } from "node:zlib";
 import { format, parseISO } from "date-fns";
 
 export const decompressData = (data: string): Promise<eewReport> => {

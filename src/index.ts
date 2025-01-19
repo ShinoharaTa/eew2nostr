@@ -1,18 +1,17 @@
-import { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post.js";
+import { setTimeout } from "node:timers/promises";
+import type { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post.js";
 import axios from "axios";
 import dotenv from "dotenv";
 import minimist from "minimist";
-import cron from "node-cron";
-import { setTimeout } from "timers/promises";
 import WebSocket from "ws";
 import { BskyInit, BskyPublish } from "./bsky.js";
-import { decompressData, eewReport, generateEEWMessage } from "./eew.js";
+import { decompressData, type eewReport, generateEEWMessage } from "./eew.js";
 import {
-  getNpub,
-  isReplyToUser,
+  // getNpub,
+  // isReplyToUser,
   publish,
   publishEEW,
-  subscribe,
+  // subscribe,
 } from "./nostr.js";
 
 dotenv.config();
@@ -142,38 +141,38 @@ const main = () => {
       console.error(error.response.status, error.response.data);
     });
 
-  subscribe(async (ev) => {
-    try {
-      const isReply = isReplyToUser(ev);
-      if (isReply && ev.pubkey === owner) {
-        const npub = getNpub();
-        if (ev.content.match(new RegExp(`^(nostr:${npub}\\s+)?生きてる？`))) {
-          publish({
-            content: "生きてる",
-            time: new Date(),
-            mentions: [ev.pubkey],
-          });
-        } else if (
-          ev.content.match(new RegExp(`^(nostr:${npub}\\s+)?再起動`))
-        ) {
-          await publish({
-            content: "再起動します。",
-            time: new Date(),
-            mentions: [ev.pubkey],
-          });
-          process.exit();
-        } else {
-          publish({
-            content: "コマンド確認して",
-            time: new Date(),
-            mentions: [ev.pubkey],
-          });
-        }
-      }
-    } catch (ex) {
-      console.error(ex);
-    }
-  });
+  // subscribe(async (ev) => {
+  //   try {
+  //     const isReply = isReplyToUser(ev);
+  //     if (isReply && ev.pubkey === owner) {
+  //       const npub = getNpub();
+  //       if (ev.content.match(new RegExp(`^(nostr:${npub}\\s+)?生きてる？`))) {
+  //         publish({
+  //           content: "生きてる",
+  //           time: new Date(),
+  //           mentions: [ev.pubkey],
+  //         });
+  //       } else if (
+  //         ev.content.match(new RegExp(`^(nostr:${npub}\\s+)?再起動`))
+  //       ) {
+  //         await publish({
+  //           content: "再起動します。",
+  //           time: new Date(),
+  //           mentions: [ev.pubkey],
+  //         });
+  //         process.exit();
+  //       } else {
+  //         publish({
+  //           content: "コマンド確認して",
+  //           time: new Date(),
+  //           mentions: [ev.pubkey],
+  //         });
+  //       }
+  //     }
+  //   } catch (ex) {
+  //     console.error(ex);
+  //   }
+  // });
 };
 
 // cron.schedule("*/5 * * * *", () => {
