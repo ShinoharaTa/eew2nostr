@@ -202,5 +202,6 @@ if (isPublishTest) {
   });
   await BskyInit();
   await BskyPublish("EEW System start");
+  await ConcrntPublish("EEW System start");
   main();
 }
