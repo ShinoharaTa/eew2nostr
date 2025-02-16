@@ -37,6 +37,8 @@
   "dependencies": {
     "@atproto/api": "^0.13.28",
     "@biomejs/biome": "1.9.4",
+    "@concrnt/client": "^0.0.15",
+    "@concrnt/worldlib": "^0.1.2",
     "@types/node-cron": "^3.0.11",
     "@types/ws": "^8.5.13",
     "@types/xml2js": "^0.4.14",

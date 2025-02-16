@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import minimist from "minimist";
 import WebSocket from "ws";
 import { BskyInit, BskyPublish } from "./bsky.js";
+import { ConcrntPublish } from "./concrnt.js";
 import { decompressData, type eewReport, generateEEWMessage } from "./eew.js";
 import {
   // getNpub,
@@ -22,6 +23,7 @@ const isPublishTest = args.publish === "true";
 
 const eewState: { [key: string]: string } = {};
 const eewStateBsky: { [key: string]: ReplyRef } = {};
+const eewStateConcrnt: { [key: string]: string } = {};
 
 // WebSocket接続の開始
 const startWebSocket = (url: string) => {
@@ -50,12 +52,22 @@ const startWebSocket = (url: string) => {
           },
           async () => {
             const targetPost =
-              content.id in eewState ? eewStateBsky[content.id] : undefined;
+              content.id in eewStateBsky ? eewStateBsky[content.id] : undefined;
             const bskyPostResult = await BskyPublish(eewMessage, targetPost);
             if (bskyPostResult) {
               eewStateBsky[content.id].parent = bskyPostResult;
               if (!eewStateBsky[content.id].root)
                 eewStateBsky[content.id].root = bskyPostResult;
+            }
+          },
+          async () => {
+            const targetId =
+              content.id in eewStateConcrnt
+                ? eewStateConcrnt[content.id]
+                : undefined;
+            const result = await ConcrntPublish(eewMessage, targetId);
+            if (result) {
+              eewStateConcrnt[content.id] = result.id;
             }
           },
         ]);
