@@ -1,12 +1,7 @@
 import dotenv from "dotenv";
-import {
-  type Event,
-  type EventTemplate,
-  SimplePool,
-  finalizeEvent,
-  getPublicKey,
-  nip19,
-} from "nostr-tools";
+import { SimplePool } from "nostr-tools/pool";
+import { type EventTemplate, finalizeEvent } from "nostr-tools/pure";
+// import WebSocket from "ws";
 import "websocket-polyfill";
 
 dotenv.config();
@@ -28,6 +23,7 @@ export const publish = async (params: {
   targetEventId?: string | null;
   mentions?: string[];
 }) => {
+  // useWebSocketImplementation(WebSocket);
   const ev: EventTemplate = {
     kind: 1,
     content: params.content,
