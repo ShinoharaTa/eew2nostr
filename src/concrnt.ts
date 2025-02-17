@@ -23,9 +23,3 @@ export const ConcrntPublish = async (body: string, messageId?: string) => {
   }
   return await client.createMarkdownCrnt(body, timelines);
 };
-
-async function test() {
-  const result = await ConcrntPublish("Hello");
-  const result2 = await ConcrntPublish("Reply", result?.id);
-}
-test();

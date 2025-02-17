@@ -59,22 +59,3 @@ export const publishEEW = async (
   await Promise.any(pool.publish(isTest ? testRelays : relays, post));
   return post.id;
 };
-
-// export function subscribe(callback: (ev: Event) => void): void {
-//   const sub = pool(relays, [
-//     {
-//       kinds: [1],
-//       since: Math.floor(new Date().getTime() / 1000),
-//       "#p": [getPublicKey(nsec)],
-//     },
-//   ]);
-//   sub.on("event", callback);
-// }
-
-// export function isReplyToUser(ev: Event): boolean {
-//   return ev.tags.find((tag) => tag.includes("p"))?.[1] === getPublicKey(nsec);
-// }
-
-// export function getNpub(): string {
-//   return nip19.npubEncode(getPublicKey(nsec));
-// }
