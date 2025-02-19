@@ -1,4 +1,3 @@
-import type { CCID } from "@concrnt/client";
 import { Client } from "@concrnt/worldlib";
 import dotenv from "dotenv";
 
