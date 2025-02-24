@@ -6,7 +6,7 @@ import minimist from "minimist";
 import WebSocket from "ws";
 import { BskyInit, BskyPublish } from "./bsky.js";
 import { ConcrntPublish } from "./concrnt.js";
-import { decompressData, type eewReport, generateEEWMessage } from "./eew.js";
+import { EEWSystem } from "./eew.js";
 import {
   // getNpub,
   // isReplyToUser,
@@ -15,18 +15,28 @@ import {
   // subscribe,
 } from "./nostr.js";
 
+import type { EewInformation } from "@dmdata/telegram-json-types";
+
 dotenv.config();
 const { EEW_TOKEN, OWNER } = process.env;
 const owner = OWNER ?? "";
 const args = minimist(process.argv.slice(2));
-const isPublishTest = args.publish === "true";
 
 const eewState: { [key: string]: string } = {};
 const eewStateBsky: { [key: string]: ReplyRef } = {};
 const eewStateConcrnt: { [key: string]: string } = {};
 
+interface PostObject {
+  nostr?: { root: string | null; parent: string | null };
+  bluesky?: ReplyRef;
+  concrnt?: { root: string };
+}
+const posts = new Map<string, PostObject>();
+const eew = new EEWSystem();
+
 // WebSocket接続の開始
 const startWebSocket = (url: string) => {
+  console.log("web socket start");
   const websocket = new WebSocket(url, ["dmdata.v2"]);
 
   websocket.on("message", async (data) => {
@@ -34,49 +44,68 @@ const startWebSocket = (url: string) => {
     if (msg.type === "ping") {
       websocket.send(JSON.stringify({ type: "pong", pingId: msg.pingId }));
     }
-    // if (msg.type === "data" && msg.format === "xml") {
     if (msg.type === "data") {
+      if (msg.head.test) {
+        console.log("test ok.");
+        return;
+      }
+      console.log(msg);
       try {
-        const content = await decompressData(msg.body);
-        const eewMessage = generateEEWMessage(content);
-        await Promise.all([
-          async () => {
-            const targetEv =
-              content.id in eewState ? eewState[content.id] : null;
-            eewState[content.id] = await publish({
+        const content = await eew.decompressData(msg.body);
+        const eewItem = eew.objectMapping(content);
+        if (eewItem === "cancel") {
+          content.eventId;
+          return;
+        }
+        if (!eewItem.id) return;
+        const eewMessage = eew.generateEEWMessage(eewItem);
+        const postInfo = posts.get(eewItem.id) ?? {};
+        const [nostrResult, bskyResult, concrntResult] = await Promise.all([
+          (async () => {
+            const nostrEventId = await publish({
               content: eewMessage,
-              time: content.reportTime,
-              targetEventId: targetEv,
+              time: eewItem.reportTime,
+              reply: postInfo.nostr,
             });
-            await publishEEW(JSON.stringify(content), content.reportTime);
-          },
-          async () => {
-            const targetPost =
-              content.id in eewStateBsky ? eewStateBsky[content.id] : undefined;
-            const bskyPostResult = await BskyPublish(eewMessage, targetPost);
-            if (bskyPostResult) {
-              eewStateBsky[content.id].parent = bskyPostResult;
-              if (!eewStateBsky[content.id].root)
-                eewStateBsky[content.id].root = bskyPostResult;
-            }
-          },
-          async () => {
-            const targetId =
-              content.id in eewStateConcrnt
-                ? eewStateConcrnt[content.id]
-                : undefined;
-            const result = await ConcrntPublish(eewMessage, targetId);
-            if (result) {
-              eewStateConcrnt[content.id] = result.id;
-            }
-          },
+            await publishEEW(JSON.stringify(content), eewItem.reportTime);
+            return nostrEventId;
+          })(),
+          (async () => {
+            const bskyPostId = await BskyPublish(eewMessage, postInfo.bluesky);
+            return bskyPostId;
+          })(),
+          (async () => {
+            const concrntPostId = await ConcrntPublish(
+              eewMessage,
+              postInfo.concrnt,
+            );
+            return concrntPostId;
+          })(),
         ]);
+        if (postInfo.nostr) postInfo.nostr.parent = nostrResult;
+        else postInfo.nostr = { root: nostrResult, parent: null };
+        if (postInfo.bluesky) postInfo.bluesky.parent = bskyResult;
+        else postInfo.bluesky = { root: bskyResult, parent: bskyResult };
+        if (concrntResult) postInfo.concrnt = { root: concrntResult.id };
+        posts.set(eewItem.id, postInfo);
       } catch (e) {
         console.error(e);
       }
     }
+    if (msg.type === "start") {
+      console.log("ws start", msg);
+    }
+    if (msg.type === "error") {
+      await publish({
+        content: `EEW System on error.\n${msg.error}`,
+        time: new Date(),
+        mentions: [owner],
+      });
+      console.log(msg);
+      setTimeout(300000);
+      process.exit();
+    }
   });
-
   websocket.on("close", async () => {
     await publish({
       content: "EEW System Connection Closed",
@@ -97,46 +126,21 @@ const startWebSocket = (url: string) => {
   });
 };
 
-const getArray = (array: string[], count: number) => {
-  const index = count % array.length;
-  return array[index];
-};
-const magnitude = ["3.2", "4.1", "5.0"];
-const forecast = ["4", "5-", "5+"];
+const main = async () => {
+  await publish({
+    content: "EEW System start",
+    time: new Date(),
+    mentions: [owner],
+  });
+  await BskyInit();
+  await BskyPublish("EEW System start");
+  await ConcrntPublish("EEW System start");
 
-const publich_test_mode = async (loop?: boolean) => {
-  console.log("eew publish test start");
-  const getNow = () => Math.floor(Date.now() / 1000);
-  const now = new Date();
-  try {
-    for (let count = 0; count < 3; count++) {
-      const content: eewReport = {
-        id: `time_${getNow()}`,
-        serial: count,
-        originTime: now,
-        reportTime: new Date(),
-        place: "テスト配信報",
-        latitude: 35.687,
-        longitude: 139.725,
-        depth: 5 * count,
-        magnitude: getArray(magnitude, count),
-        forecast: getArray(forecast, count),
-      };
-      await publishEEW(JSON.stringify(content), content.reportTime, true);
-      await setTimeout(5000);
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  if (!loop) process.exit();
-};
-
-const main = () => {
   const params = {
     classifications: ["eew.forecast"],
     test: "including",
     formatMode: "json",
-    types: ["VXSE45"],
+    types: ["VXSE45", "VXSE42"],
   };
 
   axios
@@ -152,56 +156,6 @@ const main = () => {
     .catch((error) => {
       console.error(error.response.status, error.response.data);
     });
-
-  // subscribe(async (ev) => {
-  //   try {
-  //     const isReply = isReplyToUser(ev);
-  //     if (isReply && ev.pubkey === owner) {
-  //       const npub = getNpub();
-  //       if (ev.content.match(new RegExp(`^(nostr:${npub}\\s+)?生きてる？`))) {
-  //         publish({
-  //           content: "生きてる",
-  //           time: new Date(),
-  //           mentions: [ev.pubkey],
-  //         });
-  //       } else if (
-  //         ev.content.match(new RegExp(`^(nostr:${npub}\\s+)?再起動`))
-  //       ) {
-  //         await publish({
-  //           content: "再起動します。",
-  //           time: new Date(),
-  //           mentions: [ev.pubkey],
-  //         });
-  //         process.exit();
-  //       } else {
-  //         publish({
-  //           content: "コマンド確認して",
-  //           time: new Date(),
-  //           mentions: [ev.pubkey],
-  //         });
-  //       }
-  //     }
-  //   } catch (ex) {
-  //     console.error(ex);
-  //   }
-  // });
 };
 
-// cron.schedule("*/5 * * * *", () => {
-//   console.log("5分ごとに実行するテスト配信データ");
-//   publich_test_mode(true);
-// });
-
-if (isPublishTest) {
-  publich_test_mode();
-} else {
-  await publish({
-    content: "EEW System start",
-    time: new Date(),
-    mentions: [owner],
-  });
-  await BskyInit();
-  await BskyPublish("EEW System start");
-  await ConcrntPublish("EEW System start");
-  main();
-}
+main();

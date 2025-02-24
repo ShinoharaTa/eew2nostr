@@ -14,9 +14,9 @@ const homeTimeline = () => {
 };
 homeTimeline();
 
-export const ConcrntPublish = async (body: string, messageId?: string) => {
-  if (messageId) {
-    const message = await client.getMessage(messageId, client.ccid ?? "");
+export const ConcrntPublish = async (body: string, root?: { root: string }) => {
+  if (root) {
+    const message = await client.getMessage(root.root, client.ccid ?? "");
     message?.reply(timelines, body);
     return null;
   }

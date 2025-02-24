@@ -24,19 +24,12 @@ type PostItem = {
 export const BskyPublish = async (
   content: string,
   reply?: ReplyRef,
-): Promise<{ cid: string; uri: string } | undefined> => {
-  try {
-    const post: PostItem = {
-      text: content,
-      reply: undefined,
-    };
-    if (reply) {
-      post.reply = reply;
-    }
-    const result = await agent.post(post);
-    return result;
-  } catch (ex) {
-    console.log(ex);
-    return;
-  }
+): Promise<{ cid: string; uri: string }> => {
+  const post: PostItem = {
+    text: content,
+    reply: undefined,
+  };
+  if (reply) post.reply = reply;
+  const result = await agent.post(post);
+  return result;
 };

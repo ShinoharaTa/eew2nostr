@@ -2,12 +2,10 @@ import dotenv from "dotenv";
 import { SimplePool, useWebSocketImplementation } from "nostr-tools/pool";
 import { type EventTemplate, finalizeEvent } from "nostr-tools/pure";
 import WebSocket from "ws";
-useWebSocketImplementation(WebSocket);
 
 dotenv.config();
 const HEX = process.env.HEX ?? "";
 const nsec = new Uint8Array(Buffer.from(HEX, "hex"));
-const pool = new SimplePool();
 const relays = [
   "wss://relay-jp.shino3.net",
   "wss://yabu.me",
@@ -20,7 +18,7 @@ const testRelays = ["wss://relay-jp.shino3.net"];
 export const publish = async (params: {
   content: string;
   time: Date;
-  targetEventId?: string | null;
+  reply?: { root: string | null; parent: string | null };
   mentions?: string[];
 }) => {
   const ev: EventTemplate = {
@@ -29,8 +27,10 @@ export const publish = async (params: {
     tags: [],
     created_at: Math.floor(params.time.getTime() / 1000),
   };
-  if (params.targetEventId) {
-    ev.tags.push(["e", params.targetEventId]);
+  if (params.reply) {
+    if (params.reply.root) ev.tags.push(["e", params.reply.root, "", "root"]);
+    if (params.reply.parent)
+      ev.tags.push(["e", params.reply.parent, "", "reply"]);
   }
   if (params.mentions) {
     params.mentions.map((mention) => {
@@ -38,6 +38,8 @@ export const publish = async (params: {
     });
   }
   const post = finalizeEvent(ev, nsec);
+  useWebSocketImplementation(WebSocket);
+  const pool = new SimplePool();
   await Promise.any(pool.publish(relays, post));
   return post.id;
 };
@@ -55,6 +57,8 @@ export const publishEEW = async (
   };
   const post = finalizeEvent(ev, nsec);
   console.log(post);
+  useWebSocketImplementation(WebSocket);
+  const pool = new SimplePool();
   await Promise.any(pool.publish(isTest ? testRelays : relays, post));
   return post.id;
 };
