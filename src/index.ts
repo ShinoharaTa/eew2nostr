@@ -6,6 +6,7 @@ import WebSocket from "ws";
 import { BskyInit, BskyPublish } from "./bsky.js";
 import { ConcrntPublish } from "./concrnt.js";
 import { EEWSystem } from "./eew.js";
+import { logger } from "./logger.js";
 import { publish, publishEEW } from "./nostr.js";
 
 dotenv.config();
@@ -22,7 +23,7 @@ const eew = new EEWSystem();
 
 // WebSocket接続の開始
 const startWebSocket = (url: string) => {
-  console.log("web socket start");
+  logger.info("web socket start");
   const websocket = new WebSocket(url, ["dmdata.v2"]);
 
   websocket.on("message", async (data) => {
@@ -32,10 +33,10 @@ const startWebSocket = (url: string) => {
     }
     if (msg.type === "data") {
       if (msg.head.test) {
-        console.log("test ok.");
+        logger.info("test ok.");
         return;
       }
-      console.log(msg);
+      logger.info(msg);
       try {
         const content = await eew.decompressData(msg.body);
         const eewItem = eew.objectMapping(content);
@@ -75,11 +76,11 @@ const startWebSocket = (url: string) => {
         if (concrntResult) postInfo.concrnt = { root: concrntResult.id };
         posts.set(eewItem.id, postInfo);
       } catch (e) {
-        console.error(e);
+        logger.error(e);
       }
     }
     if (msg.type === "start") {
-      console.log("ws start", msg);
+      logger.info("ws start", msg);
     }
     if (msg.type === "error") {
       await publish({
@@ -87,7 +88,7 @@ const startWebSocket = (url: string) => {
         time: new Date(),
         mentions: [owner],
       });
-      console.log(msg);
+      logger.info(msg);
       setTimeout(300000);
       process.exit();
     }
@@ -98,7 +99,7 @@ const startWebSocket = (url: string) => {
       time: new Date(),
       mentions: [owner],
     });
-    console.log("WebSocket connection closed");
+    logger.info("WebSocket connection closed");
     process.exit();
   });
   websocket.on("error", async (ev) => {
@@ -107,7 +108,7 @@ const startWebSocket = (url: string) => {
       time: new Date(),
       mentions: [owner],
     });
-    console.log(ev);
+    logger.info(ev);
     process.exit();
   });
 };
@@ -140,7 +141,7 @@ const main = async () => {
       startWebSocket(data.websocket.url);
     })
     .catch((error) => {
-      console.error(error.response.status, error.response.data);
+      logger.error(error.response.status, error.response.data);
     });
 };
 
