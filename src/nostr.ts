@@ -56,7 +56,6 @@ export const publishEEW = async (
     created_at: Math.floor(time.getTime() / 1000),
   };
   const post = finalizeEvent(ev, nsec);
-  console.log(post);
   useWebSocketImplementation(WebSocket);
   const pool = new SimplePool();
   await Promise.any(pool.publish(isTest ? testRelays : relays, post));

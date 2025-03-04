@@ -1,5 +1,6 @@
 import { gunzip } from "node:zlib";
 import { format, parseISO } from "date-fns";
+import { logger } from "./logger";
 import type { JsonSchema } from "./types/eew";
 
 export class EEWSystem {
@@ -8,7 +9,7 @@ export class EEWSystem {
       const buffer = Buffer.from(data, "base64");
       gunzip(buffer, (err, decompressed) => {
         if (err) {
-          console.error(err);
+          logger.error(err);
           reject(err);
         } else {
           const decompressedString = decompressed.toString();
@@ -16,8 +17,8 @@ export class EEWSystem {
             const data = JSON.parse(decompressedString);
             resolve(data);
           } catch (error) {
-            console.error(error);
-            console.error(decompressedString);
+            logger.error(error);
+            logger.error(decompressedString);
             reject("parse error.");
           }
         }
@@ -27,7 +28,7 @@ export class EEWSystem {
 
   objectMapping(data: JsonSchema): EEWReport | "cancel" {
     if (!data.body.earthquake || !data.eventId) {
-      console.log("cancel", data.eventId);
+      logger.info("cancel", data.eventId);
       return "cancel";
     }
     return {
