@@ -25,7 +25,7 @@ export type JsonSchema = {
 };
 
 /* https://dmdata.jp/docs/reference/conversion/json/schema/eew-information */
-export type EEW_Information = VXSE42 | VXSE43 | VXSE44 | VXSE45;
+export type EEW_Information = VXSE43 | VXSE44 | VXSE45;
 // interface VXSE42 {
 //   isLastInfo: false;
 //   isCanceled: boolean;

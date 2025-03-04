@@ -26,11 +26,6 @@ export class EEWSystem {
   }
 
   objectMapping(data: JsonSchema): EEWReport | "cancel" {
-    // console.log(data);
-    // if (data.body === "VXSE42") {
-    //   console.log("is test");
-    //   return "test";
-    // }
     if (!data.body.earthquake || !data.eventId) {
       console.log("cancel", data.eventId);
       return "cancel";

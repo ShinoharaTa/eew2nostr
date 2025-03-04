@@ -2,29 +2,15 @@ import { setTimeout } from "node:timers/promises";
 import type { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post.js";
 import axios from "axios";
 import dotenv from "dotenv";
-import minimist from "minimist";
 import WebSocket from "ws";
 import { BskyInit, BskyPublish } from "./bsky.js";
 import { ConcrntPublish } from "./concrnt.js";
 import { EEWSystem } from "./eew.js";
-import {
-  // getNpub,
-  // isReplyToUser,
-  publish,
-  publishEEW,
-  // subscribe,
-} from "./nostr.js";
-
-import type { EewInformation } from "@dmdata/telegram-json-types";
+import { publish, publishEEW } from "./nostr.js";
 
 dotenv.config();
 const { EEW_TOKEN, OWNER } = process.env;
 const owner = OWNER ?? "";
-const args = minimist(process.argv.slice(2));
-
-const eewState: { [key: string]: string } = {};
-const eewStateBsky: { [key: string]: ReplyRef } = {};
-const eewStateConcrnt: { [key: string]: string } = {};
 
 interface PostObject {
   nostr?: { root: string | null; parent: string | null };
