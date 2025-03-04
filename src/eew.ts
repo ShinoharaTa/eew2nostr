@@ -1,6 +1,6 @@
 import { gunzip } from "node:zlib";
 import { format, parseISO } from "date-fns";
-import { logger } from "./logger";
+import { logger } from "./logger.js";
 import type { JsonSchema } from "./types/eew";
 
 export class EEWSystem {
