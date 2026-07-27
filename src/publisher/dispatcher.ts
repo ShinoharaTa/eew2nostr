@@ -10,9 +10,12 @@ export interface NostrPort {
     content: string;
     time: Date;
     reply?: { root: string | null; parent: string | null };
-    mentions?: string[];
   }): Promise<string>;
   publishRaw(content: string, time: Date): Promise<string>;
+}
+
+export interface NotifierPort {
+  notify(message: string): Promise<void>;
 }
 
 export interface BskyPort {
@@ -51,6 +54,7 @@ export class PublishDispatcher {
     private nostr: NostrPort,
     private bsky: BskyPort,
     private concrnt: ConcrntPort,
+    private notifier: NotifierPort,
   ) {}
 
   handle(telegram: JsonSchema): void {
@@ -135,6 +139,9 @@ export class PublishDispatcher {
       } catch (retryError) {
         logger.error(`[${sns}] retry failed (eventId=${id}), skip this report`);
         logger.error(retryError);
+        await this.notifier.notify(
+          `🚨 [${sns}] 投稿に失敗しました (eventId=${id})。リトライも失敗したためこの報はスキップします。\n${retryError}`,
+        );
       }
     }
   }

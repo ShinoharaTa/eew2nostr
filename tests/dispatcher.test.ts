@@ -5,6 +5,7 @@ import {
   type BskyPort,
   type ConcrntPort,
   type NostrPort,
+  type NotifierPort,
   PublishDispatcher,
 } from "../src/publisher/dispatcher";
 import type { JsonSchema } from "../src/types/eew";
@@ -26,6 +27,7 @@ describe("PublishDispatcher", () => {
   let nostr: jest.Mocked<NostrPort>;
   let bsky: jest.Mocked<BskyPort>;
   let concrnt: jest.Mocked<ConcrntPort>;
+  let notifier: jest.Mocked<NotifierPort>;
   let dispatcher: PublishDispatcher;
 
   beforeEach(() => {
@@ -46,7 +48,16 @@ describe("PublishDispatcher", () => {
     concrnt = {
       publish: jest.fn().mockResolvedValue({ id: "concrnt-1" }),
     };
-    dispatcher = new PublishDispatcher(new EEWParser(), nostr, bsky, concrnt);
+    notifier = {
+      notify: jest.fn().mockResolvedValue(undefined),
+    };
+    dispatcher = new PublishDispatcher(
+      new EEWParser(),
+      nostr,
+      bsky,
+      concrnt,
+      notifier,
+    );
   });
 
   it("同一イベントの続報は前の投稿へのリプライとして繋がる", async () => {
@@ -99,6 +110,21 @@ describe("PublishDispatcher", () => {
       root: { cid: "cid-r", uri: "uri-r" },
       parent: { cid: "cid-r", uri: "uri-r" },
     });
+    // リトライで成功した場合は通知しない
+    expect(notifier.notify).not.toHaveBeenCalled();
+  });
+
+  it("リトライも失敗してスキップした報は Discord に通知される", async () => {
+    bsky.publish.mockRejectedValue(new Error("bsky down"));
+
+    dispatcher.handle(telegramWithSerial("1"));
+    await dispatcher.flush();
+
+    expect(notifier.notify).toHaveBeenCalledTimes(1);
+    expect(notifier.notify.mock.calls[0][0]).toContain("[bluesky]");
+    expect(notifier.notify.mock.calls[0][0]).toContain(
+      "eventId=20240109012003",
+    );
   });
 
   it("リトライも失敗した報はスキップし、次の報は最後に成功した投稿へ繋ぐ", async () => {
