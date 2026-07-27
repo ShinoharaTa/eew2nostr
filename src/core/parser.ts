@@ -1,31 +1,24 @@
-import { gunzip } from "node:zlib";
 import { format, parseISO } from "date-fns";
-import { logger } from "./logger.js";
-import type { JsonSchema } from "./types/eew";
+import { logger } from "../logger.js";
+import type { JsonSchema } from "../types/eew";
 
-export class EEWSystem {
-  async decompressData(data: string): Promise<JsonSchema> {
-    return new Promise((resolve, reject) => {
-      const buffer = Buffer.from(data, "base64");
-      gunzip(buffer, (err, decompressed) => {
-        if (err) {
-          logger.error(err);
-          reject(err);
-        } else {
-          const decompressedString = decompressed.toString();
-          try {
-            const data = JSON.parse(decompressedString);
-            resolve(data);
-          } catch (error) {
-            logger.error(error);
-            logger.error(decompressedString);
-            reject("parse error.");
-          }
-        }
-      });
-    });
-  }
+export type EEWReport = {
+  isTest: boolean;
+  id: string;
+  isLast: boolean;
+  serial: string | null;
+  originTime: Date | null;
+  reportTime: Date;
+  place: string;
+  latitude: number;
+  longitude: number;
+  depth: number;
+  magnitude: string;
+  forecast: string;
+  forecastLg: string | null;
+};
 
+export class EEWParser {
   objectMapping(data: JsonSchema): EEWReport | "cancel" {
     if (!data.body.earthquake || !data.eventId) {
       logger.info("cancel", data.eventId);
@@ -61,9 +54,8 @@ export class EEWSystem {
     };
   }
 
-  generateEEWMessage(content: EEWReport, testMode?: boolean) {
+  generateEEWMessage(content: EEWReport) {
     let message = "";
-    if (testMode) message += "※テスト投稿\n";
     const alertTime = content.originTime
       ? format(content.originTime, "HH:mm")
       : "";
@@ -85,19 +77,3 @@ export class EEWSystem {
     return message;
   }
 }
-
-export type EEWReport = {
-  isTest: boolean;
-  id: string;
-  isLast: boolean;
-  serial: string | null;
-  originTime: Date | null;
-  reportTime: Date;
-  place: string;
-  latitude: number;
-  longitude: number;
-  depth: number;
-  magnitude: string;
-  forecast: string;
-  forecastLg: string | null;
-};
