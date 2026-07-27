@@ -14,8 +14,10 @@ export class DiscordNotifier {
     try {
       await axios.post(this.webhookUrl, { content: message });
     } catch (e) {
-      logger.error("Discord notification failed");
-      logger.error(e);
+      logger.error("Discord notification failed", {
+        err: e,
+        notification: message,
+      });
     }
   }
 }

@@ -47,22 +47,27 @@ export class DmdataReceiver {
       }
       if (msg.type === "data") {
         if (msg.head.test) {
-          logger.info("test ok.");
+          logger.info("test telegram received (ignored)", { head: msg.head });
           return;
         }
-        logger.info(msg);
+        // body は base64+gzip の本文なので、識別情報だけを残す
+        logger.info("telegram received", {
+          id: msg.id,
+          classification: msg.classification,
+          head: msg.head,
+        });
         try {
           const telegram = await this.decompress(msg.body);
           this.events.onTelegram(telegram);
         } catch (e) {
-          logger.error(e);
+          logger.error("failed to handle telegram", { err: e });
         }
       }
       if (msg.type === "start") {
-        logger.info("ws start", msg);
+        logger.info("web socket started", { start: msg });
       }
       if (msg.type === "error") {
-        logger.info(msg);
+        logger.error("web socket reported an error", { error: msg });
         this.events.onDisconnect(`EEW System on error.\n${msg.error}`);
       }
     });
@@ -71,7 +76,7 @@ export class DmdataReceiver {
       this.events.onDisconnect("EEW System Connection Closed");
     });
     websocket.on("error", (ev) => {
-      logger.info(ev);
+      logger.error("web socket error", { err: ev });
       this.events.onDisconnect(`EEW System on error.\n${ev.message}`);
     });
   }
@@ -81,7 +86,7 @@ export class DmdataReceiver {
       const buffer = Buffer.from(data, "base64");
       gunzip(buffer, (err, decompressed) => {
         if (err) {
-          logger.error(err);
+          logger.error("failed to decompress telegram", { err });
           reject(err);
           return;
         }
@@ -89,8 +94,10 @@ export class DmdataReceiver {
         try {
           resolve(JSON.parse(decompressedString));
         } catch (error) {
-          logger.error(error);
-          logger.error(decompressedString);
+          logger.error("failed to parse telegram", {
+            err: error,
+            body: decompressedString,
+          });
           reject(new Error("parse error."));
         }
       });
