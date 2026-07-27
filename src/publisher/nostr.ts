@@ -18,7 +18,6 @@ export class NostrPublisher {
     content: string;
     time: Date;
     reply?: { root: string | null; parent: string | null };
-    mentions?: string[];
   }): Promise<string> {
     const ev: EventTemplate = {
       kind: 1,
@@ -30,11 +29,6 @@ export class NostrPublisher {
       if (params.reply.root) ev.tags.push(["e", params.reply.root, "", "root"]);
       if (params.reply.parent)
         ev.tags.push(["e", params.reply.parent, "", "reply"]);
-    }
-    if (params.mentions) {
-      for (const mention of params.mentions) {
-        ev.tags.push(["p", mention]);
-      }
     }
     return await this.send(ev);
   }
