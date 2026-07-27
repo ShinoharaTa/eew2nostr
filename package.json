@@ -24,6 +24,7 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "moduleNameMapper": {
+      "^nostr-tools/(.*)$": "<rootDir>/node_modules/nostr-tools/lib/cjs/$1.js",
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "transform": {
@@ -32,7 +33,13 @@
         {
           "tsconfig": {
             "module": "CommonJS",
-            "moduleResolution": "node"
+            "moduleResolution": "node",
+            "baseUrl": ".",
+            "paths": {
+              "nostr-tools/*": [
+                "node_modules/nostr-tools/lib/types/*"
+              ]
+            }
           }
         }
       ]

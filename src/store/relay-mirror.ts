@@ -21,6 +21,7 @@ export interface ReplaceablePublisherPort {
     tags: string[][];
     content: string;
     createdAt: number;
+    relays?: string[];
   }): Promise<string>;
 }
 
@@ -31,7 +32,11 @@ export interface StatusMirror {
 export class NostrStatusMirror implements StatusMirror {
   private lastCreatedAt = new Map<string, number>();
 
-  constructor(private nostr: ReplaceablePublisherPort) {}
+  // relays を渡すとミラー先を投稿先と分けられる
+  constructor(
+    private nostr: ReplaceablePublisherPort,
+    private relays?: string[],
+  ) {}
 
   async mirror(record: AlertStatusRecord): Promise<void> {
     await this.nostr.publishReplaceable({
@@ -46,6 +51,7 @@ export class NostrStatusMirror implements StatusMirror {
       ],
       content: JSON.stringify(record),
       createdAt: this.nextCreatedAt(record.key),
+      relays: this.relays,
     });
   }
 
