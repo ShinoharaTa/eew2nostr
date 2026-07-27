@@ -68,7 +68,7 @@ const main = async () => {
       try {
         await dispatcher.handle(telegram);
       } catch (e) {
-        logger.error(e);
+        logger.error("failed to dispatch telegram", { err: e });
       }
     }
   };
@@ -85,7 +85,7 @@ const main = async () => {
     await receiver.start();
     await discord.notify("✅ EEW System start");
   } catch (error) {
-    logger.error(error);
+    logger.error("failed to start EEW System", { err: error });
     await discord.notify(`🚨 EEW System の起動に失敗しました。\n${error}`);
     process.exit(1);
   }

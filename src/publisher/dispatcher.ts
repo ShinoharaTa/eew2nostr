@@ -138,13 +138,14 @@ export class PublishDispatcher {
     try {
       await job();
     } catch (firstError) {
-      logger.error(`[${sns}] post failed (${key}), retrying`);
-      logger.error(firstError);
+      logger.warn(`[${sns}] post failed, retrying`, { key, err: firstError });
       try {
         await job();
       } catch (retryError) {
-        logger.error(`[${sns}] retry failed (${key}), skip this report`);
-        logger.error(retryError);
+        logger.error(`[${sns}] retry failed, skip this report`, {
+          key,
+          err: retryError,
+        });
         await this.notifier.notify(
           `🚨 [${sns}] 投稿に失敗しました (${key})。リトライも失敗したためこの報はスキップします。\n${retryError}`,
         );

@@ -81,8 +81,7 @@ export class StatusManager {
         await this.mirror.mirror(snapshot);
         await this.store.markMirrored(snapshot.key, snapshot.revision);
       } catch (e) {
-        logger.error(`status mirror failed: ${snapshot.key}`);
-        logger.error(e);
+        logger.error("status mirror failed", { key: snapshot.key, err: e });
       }
     });
   }

@@ -21,7 +21,11 @@ export type EEWReport = {
 export class EEWParser {
   objectMapping(data: JsonSchema): EEWReport | "cancel" {
     if (!data.body.earthquake || !data.eventId) {
-      logger.info("cancel", data.eventId);
+      logger.info("telegram skipped (no earthquake or eventId)", {
+        eventId: data.eventId,
+        serialNo: data.serialNo,
+        infoType: data.infoType,
+      });
       return "cancel";
     }
     return {
