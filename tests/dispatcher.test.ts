@@ -8,6 +8,8 @@ import {
   type NotifierPort,
   PublishDispatcher,
 } from "../src/publisher/dispatcher";
+import { SqliteStatusStore } from "../src/store/sqlite-store";
+import { StatusManager } from "../src/store/status-manager";
 import type { JsonSchema } from "../src/types/eew";
 
 const loadSample = (): JsonSchema =>
@@ -28,9 +30,10 @@ describe("PublishDispatcher", () => {
   let bsky: jest.Mocked<BskyPort>;
   let concrnt: jest.Mocked<ConcrntPort>;
   let notifier: jest.Mocked<NotifierPort>;
+  let status: StatusManager;
   let dispatcher: PublishDispatcher;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     let nostrCount = 0;
     let bskyCount = 0;
     nostr = {
@@ -51,19 +54,24 @@ describe("PublishDispatcher", () => {
     notifier = {
       notify: jest.fn().mockResolvedValue(undefined),
     };
+    const store = new SqliteStatusStore(":memory:");
+    await store.init();
+    status = new StatusManager(store, { mirror: jest.fn() });
+    await status.init();
     dispatcher = new PublishDispatcher(
       new EEWParser(),
       nostr,
       bsky,
       concrnt,
       notifier,
+      status,
     );
   });
 
   it("同一イベントの続報は前の投稿へのリプライとして繋がる", async () => {
-    dispatcher.handle(telegramWithSerial("1"));
-    dispatcher.handle(telegramWithSerial("2"));
-    dispatcher.handle(telegramWithSerial("3"));
+    await dispatcher.handle(telegramWithSerial("1"));
+    await dispatcher.handle(telegramWithSerial("2"));
+    await dispatcher.handle(telegramWithSerial("3"));
     await dispatcher.flush();
 
     expect(nostr.publishNote).toHaveBeenCalledTimes(3);
@@ -100,8 +108,8 @@ describe("PublishDispatcher", () => {
       .mockRejectedValueOnce(new Error("temporary error"))
       .mockResolvedValueOnce({ cid: "cid-r", uri: "uri-r" });
 
-    dispatcher.handle(telegramWithSerial("1"));
-    dispatcher.handle(telegramWithSerial("2"));
+    await dispatcher.handle(telegramWithSerial("1"));
+    await dispatcher.handle(telegramWithSerial("2"));
     await dispatcher.flush();
 
     // 1報目: 失敗 + リトライ成功、2報目: 成功 = 計3回
@@ -117,14 +125,57 @@ describe("PublishDispatcher", () => {
   it("リトライも失敗してスキップした報は Discord に通知される", async () => {
     bsky.publish.mockRejectedValue(new Error("bsky down"));
 
-    dispatcher.handle(telegramWithSerial("1"));
+    await dispatcher.handle(telegramWithSerial("1"));
     await dispatcher.flush();
 
     expect(notifier.notify).toHaveBeenCalledTimes(1);
     expect(notifier.notify.mock.calls[0][0]).toContain("[bluesky]");
-    expect(notifier.notify.mock.calls[0][0]).toContain(
-      "eventId=20240109012003",
+    expect(notifier.notify.mock.calls[0][0]).toContain("eew:20240109012003");
+  });
+
+  it("投稿が全滅してもステータスは記録される", async () => {
+    nostr.publishNote.mockRejectedValue(new Error("nostr down"));
+    bsky.publish.mockRejectedValue(new Error("bsky down"));
+    concrnt.publish.mockRejectedValue(new Error("concrnt down"));
+
+    await dispatcher.handle(telegramWithSerial("1"));
+    await dispatcher.flush();
+
+    const record = status.get("eew:20240109012003");
+    expect(record).toBeDefined();
+    expect(record?.category).toBe("eew");
+    expect(record?.headline).toContain("石川県能登地方");
+    expect(record?.posts).toEqual({});
+  });
+
+  it("続報中は active、最終報でステータスが finalized になる", async () => {
+    const telegram = loadSample();
+    const ongoing = {
+      ...telegram,
+      serialNo: "1",
+      body: { ...telegram.body, isLastInfo: false },
+    } as JsonSchema;
+
+    await dispatcher.handle(ongoing);
+    expect(status.get("eew:20240109012003")?.status).toBe("active");
+    expect(status.get("eew:20240109012003")?.serial).toBe("1");
+
+    await dispatcher.handle({
+      ...telegram,
+      serialNo: "2",
+      reportDateTime: "2024-01-09T01:21:30+09:00",
+    });
+    const record = status.get("eew:20240109012003");
+    expect(record?.status).toBe("finalized");
+    expect(record?.serial).toBe("2");
+    // 発表時刻は初報のまま、更新時刻だけが進む
+    expect(record?.publishedAt).toBe(
+      new Date("2024-01-09T01:20:44+09:00").toISOString(),
     );
+    expect(record?.updatedAt).toBe(
+      new Date("2024-01-09T01:21:30+09:00").toISOString(),
+    );
+    await dispatcher.flush();
   });
 
   it("リトライも失敗した報はスキップし、次の報は最後に成功した投稿へ繋ぐ", async () => {
@@ -136,9 +187,9 @@ describe("PublishDispatcher", () => {
       return { cid: `cid-${count}`, uri: `uri-${count}` };
     });
 
-    dispatcher.handle(telegramWithSerial("1"));
-    dispatcher.handle(telegramWithSerial("2"));
-    dispatcher.handle(telegramWithSerial("3"));
+    await dispatcher.handle(telegramWithSerial("1"));
+    await dispatcher.handle(telegramWithSerial("2"));
+    await dispatcher.handle(telegramWithSerial("3"));
     await dispatcher.flush();
 
     // 1報目成功(1回) + 2報目失敗(2回) + 3報目成功(1回) = 4回
@@ -153,8 +204,8 @@ describe("PublishDispatcher", () => {
   it("1つのSNSの障害が他のSNSの投稿を止めない", async () => {
     bsky.publish.mockRejectedValue(new Error("bsky down"));
 
-    dispatcher.handle(telegramWithSerial("1"));
-    dispatcher.handle(telegramWithSerial("2"));
+    await dispatcher.handle(telegramWithSerial("1"));
+    await dispatcher.handle(telegramWithSerial("2"));
     await dispatcher.flush();
 
     expect(nostr.publishNote).toHaveBeenCalledTimes(2);
@@ -167,11 +218,11 @@ describe("PublishDispatcher", () => {
 
   it("キャンセル電文や eventId 無しは投稿しない", async () => {
     const telegram = loadSample();
-    dispatcher.handle({
+    await dispatcher.handle({
       ...telegram,
       body: { ...telegram.body, earthquake: undefined },
     } as JsonSchema);
-    dispatcher.handle({ ...telegram, eventId: null });
+    await dispatcher.handle({ ...telegram, eventId: null });
     await dispatcher.flush();
 
     expect(nostr.publishNote).not.toHaveBeenCalled();
