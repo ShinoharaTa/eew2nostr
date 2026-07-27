@@ -56,7 +56,7 @@ const main = async () => {
     while (true) {
       const telegram = await queue.pop();
       try {
-        await dispatcher.handle(telegram);
+        dispatcher.handle(telegram);
       } catch (e) {
         logger.error(e);
       }
