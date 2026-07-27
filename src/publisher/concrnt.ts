@@ -23,7 +23,7 @@ export class ConcrntPublisher {
         root.root,
         this.client.ccid ?? "",
       );
-      message?.reply(this.timelines, body);
+      await message?.reply(this.timelines, body);
       return null;
     }
     return await this.client.createMarkdownCrnt(body, this.timelines);
