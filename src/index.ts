@@ -45,9 +45,10 @@ const main = async () => {
 
   const store = new SqliteStatusStore(STATUS_DB_PATH ?? "./data/status.db");
   await store.init();
+  // ミラーは宛先が違うだけなので、接続プールは投稿用と共有する
   const status = new StatusManager(
     store,
-    new NostrStatusMirror(new NostrPublisher(HEX ?? "", statusRelays)),
+    new NostrStatusMirror(nostr, statusRelays),
   );
   await status.init();
 
@@ -74,11 +75,18 @@ const main = async () => {
   };
   consume();
 
+  // リレー接続と DB を明示的に閉じてから終了する
+  const shutdown = async (code: number) => {
+    nostr.dispose();
+    await store.close();
+    process.exit(code);
+  };
+
   const receiver = new DmdataReceiver(EEW_TOKEN ?? "", {
     onTelegram: (telegram) => queue.push(telegram),
     onDisconnect: async (reason) => {
       await discord.notify(`🚨 ${reason}`);
-      process.exit();
+      await shutdown(0);
     },
   });
   try {
@@ -87,7 +95,7 @@ const main = async () => {
   } catch (error) {
     logger.error(error);
     await discord.notify(`🚨 EEW System の起動に失敗しました。\n${error}`);
-    process.exit(1);
+    await shutdown(1);
   }
 };
 
