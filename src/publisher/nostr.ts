@@ -33,6 +33,22 @@ export class NostrPublisher {
     return await this.send(ev);
   }
 
+  async publishReplaceable(params: {
+    kind: number;
+    d: string;
+    tags: string[][];
+    content: string;
+    createdAt: number;
+  }): Promise<string> {
+    const ev: EventTemplate = {
+      kind: params.kind,
+      content: params.content,
+      tags: [["d", params.d], ...params.tags],
+      created_at: params.createdAt,
+    };
+    return await this.send(ev);
+  }
+
   async publishRaw(content: string, time: Date): Promise<string> {
     const ev: EventTemplate = {
       kind: 7078,
