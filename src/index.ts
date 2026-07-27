@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { EEWParser } from "./core/parser.js";
 import { AsyncQueue } from "./core/queue.js";
 import { logger } from "./logger.js";
+import { DiscordNotifier } from "./notifier/discord.js";
 import { BskyPublisher } from "./publisher/bsky.js";
 import { ConcrntPublisher } from "./publisher/concrnt.js";
 import { PublishDispatcher } from "./publisher/dispatcher.js";
@@ -13,13 +14,12 @@ dotenv.config();
 const {
   EEW_TOKEN,
   HEX,
-  OWNER,
   BSKY_IDENTIFIER,
   BSKY_PASSWORD,
   CONCRNT_SUBKEY,
   CONCRNT_CHANNEL,
+  DISCORD_WEBHOOK_URL,
 } = process.env;
-const owner = OWNER ?? "";
 
 const relays = [
   "wss://relay-jp.shino3.net",
@@ -29,25 +29,19 @@ const relays = [
 ];
 
 const main = async () => {
+  const discord = new DiscordNotifier(DISCORD_WEBHOOK_URL ?? "");
   const nostr = new NostrPublisher(HEX ?? "", relays);
   const bsky = new BskyPublisher(BSKY_IDENTIFIER ?? "", BSKY_PASSWORD ?? "");
   const concrnt = new ConcrntPublisher(CONCRNT_SUBKEY ?? "", CONCRNT_CHANNEL);
   await bsky.init();
   await concrnt.init();
 
-  await nostr.publishNote({
-    content: "EEW System start",
-    time: new Date(),
-    mentions: [owner],
-  });
-  await bsky.publish("EEW System start");
-  await concrnt.publish("EEW System start");
-
   const dispatcher = new PublishDispatcher(
     new EEWParser(),
     nostr,
     bsky,
     concrnt,
+    discord,
   );
 
   // 取得層と配信層は内部キューで接続する
@@ -67,18 +61,16 @@ const main = async () => {
   const receiver = new DmdataReceiver(EEW_TOKEN ?? "", {
     onTelegram: (telegram) => queue.push(telegram),
     onDisconnect: async (reason) => {
-      await nostr.publishNote({
-        content: reason,
-        time: new Date(),
-        mentions: [owner],
-      });
+      await discord.notify(`🚨 ${reason}`);
       process.exit();
     },
   });
   try {
     await receiver.start();
+    await discord.notify("✅ EEW System start");
   } catch (error) {
     logger.error(error);
+    await discord.notify(`🚨 EEW System の起動に失敗しました。\n${error}`);
     process.exit(1);
   }
 };
