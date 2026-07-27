@@ -6,6 +6,7 @@ import {
   NostrStatusMirror,
   type ReplaceablePublisherPort,
   STATUS_EVENT_KIND,
+  STATUS_LABEL_NAMESPACE,
 } from "../src/store/relay-mirror";
 import { SqliteStatusStore } from "../src/store/sqlite-store";
 import { StatusManager } from "../src/store/status-manager";
@@ -183,7 +184,7 @@ describe("NostrStatusMirror", () => {
     mirror = new NostrStatusMirror(nostr);
   });
 
-  it("d タグをキー、t タグに種別と状態を載せて発行する", async () => {
+  it("d タグをキー、種別を t タグ、状態を NIP-32 ラベルで発行する", async () => {
     await mirror.mirror(sampleRecord());
 
     const params = nostr.publishReplaceable.mock.calls[0][0];
@@ -191,11 +192,25 @@ describe("NostrStatusMirror", () => {
     expect(params.d).toBe("eew:20240109012003");
     expect(params.tags).toEqual([
       ["t", "eew"],
-      ["t", "active"],
+      ["L", STATUS_LABEL_NAMESPACE],
+      ["l", "active", STATUS_LABEL_NAMESPACE],
     ]);
     expect(JSON.parse(params.content).headline).toBe(
       "石川県能登地方 震度3（M3.5）",
     );
+  });
+
+  // 種別と状態が別のタグ名に載っていないと、購読側は
+  // {"#t":["eew","active"]} という OR クエリしか組めず
+  // 「発表中の緊急地震速報だけ」をサーバサイドで絞り込めない
+  it("種別と状態は別のタグ名に載る", async () => {
+    await mirror.mirror(sampleRecord({ status: "finalized" }));
+
+    const tags = nostr.publishReplaceable.mock.calls[0][0].tags;
+    const topicValues = tags.filter((tag) => tag[0] === "t").map((t) => t[1]);
+    const labelValues = tags.filter((tag) => tag[0] === "l").map((t) => t[1]);
+    expect(topicValues).toEqual(["eew"]);
+    expect(labelValues).toEqual(["finalized"]);
   });
 
   it("同一秒に連続更新しても created_at が単調増加する", async () => {

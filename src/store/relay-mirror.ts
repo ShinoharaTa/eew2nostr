@@ -1,9 +1,18 @@
 import type { AlertStatusRecord } from "../core/status.js";
 
-// NIP-78 Application-specific Data。
-// リレーが「同一 pubkey + kind + d タグの最新1件」だけを保持するため、
+// 防災情報のステータス専用に使う addressable kind。
+// リレーは「同一 pubkey + kind + d タグ値の最新1件」だけを保持するため、
 // 更新のたびに同じ d タグで発行すれば現在の状態がそのまま引ける。
-export const STATUS_EVENT_KIND = 30078;
+// 置換は d タグ値ごとなので、防災イベントごとのレコードは互いに共存する。
+//
+// NIP-78 (kind 30078) は「相互運用性を求めないアプリの個人データ」が対象で、
+// 他クライアントに読ませる公開データには合わないため専用 kind を使う。
+export const STATUS_EVENT_KIND = 30830;
+
+// NIP-32 のラベル名前空間。状態を種別 (t タグ) と別のタグ名で持たせる。
+// NIP-01 では同じタグ内の値は OR、異なる属性同士は AND で評価されるため、
+// 種別と状態を同じ t タグに入れると「発表中の緊急地震速報だけ」が表現できない。
+export const STATUS_LABEL_NAMESPACE = "jp.shino3.bosai.status";
 
 export interface ReplaceablePublisherPort {
   publishReplaceable(params: {
@@ -28,11 +37,12 @@ export class NostrStatusMirror implements StatusMirror {
     await this.nostr.publishReplaceable({
       kind: STATUS_EVENT_KIND,
       d: record.key,
-      // 単一文字タグはリレーでインデックスされるため、
-      // 購読側が種別・状態でサーバサイド絞り込みできる
+      // 単一文字タグはリレーでインデックスされるため、購読側は
+      // {"#t":["eew"], "#l":["active"]} のように AND で絞り込める
       tags: [
         ["t", record.category],
-        ["t", record.status],
+        ["L", STATUS_LABEL_NAMESPACE],
+        ["l", record.status, STATUS_LABEL_NAMESPACE],
       ],
       content: JSON.stringify(record),
       createdAt: this.nextCreatedAt(record.key),
