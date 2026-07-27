@@ -8,6 +8,9 @@ import { ConcrntPublisher } from "./publisher/concrnt.js";
 import { PublishDispatcher } from "./publisher/dispatcher.js";
 import { NostrPublisher } from "./publisher/nostr.js";
 import { DmdataReceiver } from "./receiver/dmdata.js";
+import { NostrStatusMirror } from "./store/relay-mirror.js";
+import { SqliteStatusStore } from "./store/sqlite-store.js";
+import { StatusManager } from "./store/status-manager.js";
 import type { JsonSchema } from "./types/eew";
 
 dotenv.config();
@@ -19,6 +22,7 @@ const {
   CONCRNT_SUBKEY,
   CONCRNT_CHANNEL,
   DISCORD_WEBHOOK_URL,
+  STATUS_DB_PATH,
 } = process.env;
 
 const relays = [
@@ -28,6 +32,9 @@ const relays = [
   "wss://relay-jp.nostr.wirednet.jp",
 ];
 
+// ステータスのミラー先。自前リレーのみに保持する。
+const statusRelays = ["wss://relay-jp.shino3.net"];
+
 const main = async () => {
   const discord = new DiscordNotifier(DISCORD_WEBHOOK_URL ?? "");
   const nostr = new NostrPublisher(HEX ?? "", relays);
@@ -36,12 +43,21 @@ const main = async () => {
   await bsky.init();
   await concrnt.init();
 
+  const store = new SqliteStatusStore(STATUS_DB_PATH ?? "./data/status.db");
+  await store.init();
+  const status = new StatusManager(
+    store,
+    new NostrStatusMirror(new NostrPublisher(HEX ?? "", statusRelays)),
+  );
+  await status.init();
+
   const dispatcher = new PublishDispatcher(
     new EEWParser(),
     nostr,
     bsky,
     concrnt,
     discord,
+    status,
   );
 
   // 取得層と配信層は内部キューで接続する
@@ -50,7 +66,7 @@ const main = async () => {
     while (true) {
       const telegram = await queue.pop();
       try {
-        dispatcher.handle(telegram);
+        await dispatcher.handle(telegram);
       } catch (e) {
         logger.error(e);
       }
