@@ -1,0 +1,13 @@
+{
+  "accounts": {
+    "main": {
+      "hexEnv": "HEX",
+      "profile": {
+        "name": "eew_shino3",
+        "display_name": "緊急地震速報",
+        "about": "気象庁の緊急地震速報を配信します。\n※このシステムは試験運用中です。",
+        "website": "https://github.com/ShinoharaTa/eew2nostr"
+      }
+    }
+  }
+}

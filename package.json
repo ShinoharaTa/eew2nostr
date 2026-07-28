@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "npm run build && node dist/index.js",
+    "publish:profiles": "npm run build && node dist/profile/publish-profiles.js",
     "test": "jest",
     "lint:code": "biome lint ./",
     "lint:style": "biome format ./",
