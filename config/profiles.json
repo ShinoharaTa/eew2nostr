@@ -1,6 +1,7 @@
 {
   "accounts": {
-    "main": {
+    "0000000000000000000000000000000000000000000000000000000000000000": {
+      "label": "要差し替え: npm run publish:profiles -- --dry-run で正しい公開鍵を確認してください",
       "hexEnv": "HEX",
       "profile": {
         "name": "eew_shino3",
