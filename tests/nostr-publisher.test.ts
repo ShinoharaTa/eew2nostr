@@ -107,6 +107,30 @@ describe("NostrPublisher", () => {
     expect(pool.publish.mock.calls[0][0]).toEqual(statusRelays);
   });
 
+  it("kind 0 は d タグを持たない replaceable event として発行する", async () => {
+    const publisher = new NostrPublisher(hex, relays, pool);
+    await publisher.publishMetadata({
+      name: "eew_shino3",
+      display_name: "緊急地震速報",
+    });
+
+    const event = pool.publish.mock.calls[0][1];
+    expect(event.kind).toBe(0);
+    // kind 0 は pubkey + kind で置換されるため d タグは付けない
+    expect(event.tags).toEqual([]);
+    expect(JSON.parse(event.content)).toEqual({
+      name: "eew_shino3",
+      display_name: "緊急地震速報",
+    });
+  });
+
+  it("kind 0 の宛先リレーを指定できる", async () => {
+    const publisher = new NostrPublisher(hex, relays, pool);
+    await publisher.publishMetadata({ name: "x" }, ["wss://own.example"]);
+
+    expect(pool.publish.mock.calls[0][0]).toEqual(["wss://own.example"]);
+  });
+
   it("dispose は使った宛先をすべて閉じる", async () => {
     const publisher = new NostrPublisher(hex, relays, pool);
     await publisher.publishNote({ content: "hello", time: new Date() });

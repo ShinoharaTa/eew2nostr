@@ -70,6 +70,20 @@ export class NostrPublisher {
     return await this.send(ev, params.relays);
   }
 
+  // kind 0 は pubkey + kind で置換される replaceable event のため d タグを持たない
+  async publishMetadata(
+    profile: Record<string, unknown>,
+    relays?: string[],
+  ): Promise<string> {
+    const ev: EventTemplate = {
+      kind: 0,
+      content: JSON.stringify(profile),
+      tags: [],
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    return await this.send(ev, relays);
+  }
+
   async publishRaw(content: string, time: Date): Promise<string> {
     const ev: EventTemplate = {
       kind: 7078,
