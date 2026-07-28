@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Report xmlns="http://xml.kishou.go.jp/jmaxml1/" xmlns:jmx="http://xml.kishou.go.jp/jmaxml1/">
+<Control>
+<Title>震源・震度に関する情報</Title>
+<DateTime>2026-07-28T08:48:17Z</DateTime>
+<Status>通常</Status>
+<EditorialOffice>気象庁本庁</EditorialOffice>
+<PublishingOffice>気象庁</PublishingOffice>
+</Control>
+<Head xmlns="http://xml.kishou.go.jp/jmaxml1/informationBasis1/">
+<Title>震源・震度情報</Title>
+<ReportDateTime>2026-07-28T17:48:00+09:00</ReportDateTime>
+<TargetDateTime>2026-07-28T17:48:00+09:00</TargetDateTime>
+<EventID>20260728174504</EventID>
+<InfoType>発表</InfoType>
+<Serial>1</Serial>
+<InfoKind>地震情報</InfoKind>
+<InfoKindVersion>1.0_1</InfoKindVersion>
+<Headline>
+<Text>２８日１７時４５分ころ、地震がありました。</Text>
+</Headline>
+</Head>
+<Body xmlns="http://xml.kishou.go.jp/jmaxml1/body/seismology1/" xmlns:jmx_eb="http://xml.kishou.go.jp/jmaxml1/elementBasis1/">
+<Earthquake>
+<OriginTime>2026-07-28T17:45:00+09:00</OriginTime>
+<ArrivalTime>2026-07-28T17:45:00+09:00</ArrivalTime>
+<Hypocenter>
+<Area>
+<Name>熊本県熊本地方</Name>
+<Code type="震央地名">741</Code>
+<jmx_eb:Coordinate description="北緯３２．５度　東経１３０．６度　深さ　１０ｋｍ" >+32.5+130.6-10000/</jmx_eb:Coordinate>
+</Area>
+</Hypocenter>
+<jmx_eb:Magnitude type="Mj" description="Ｍ３．１">3.1</jmx_eb:Magnitude>
+</Earthquake>
+<Intensity>
+<Observation>
+<CodeDefine>
+<Type xpath="Pref/Code">地震情報／都道府県等</Type>
+<Type xpath="Pref/Area/Code">地震情報／細分区域</Type>
+<Type xpath="Pref/Area/City/Code">気象・地震・火山情報／市町村等</Type>
+<Type xpath="Pref/Area/City/IntensityStation/Code">震度観測点</Type>
+</CodeDefine>
+<MaxInt>2</MaxInt>
+<Pref><Name>熊本県</Name><Code>43</Code><MaxInt>2</MaxInt>
+<Area><Name>熊本県熊本</Name><Code>741</Code><MaxInt>2</MaxInt>
+<City><Name>八代市</Name><Code>4320200</Code><MaxInt>2</MaxInt>
+<IntensityStation><Name>八代市平山新町</Name><Code>4320200</Code><Int>2</Int></IntensityStation>
+<IntensityStation><Name>八代市新地町＊</Name><Code>4320221</Code><Int>1</Int></IntensityStation>
+<IntensityStation><Name>八代市千丁町＊</Name><Code>4320230</Code><Int>1</Int></IntensityStation>
+<IntensityStation><Name>八代市鏡町＊</Name><Code>4320231</Code><Int>1</Int></IntensityStation>
+<IntensityStation><Name>八代市坂本町＊</Name><Code>4320238</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>熊本東区</Name><Code>4310200</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>熊本東区佐土原＊</Name><Code>4310221</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>熊本西区</Name><Code>4310300</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>熊本西区春日</Name><Code>4310300</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>熊本南区</Name><Code>4310400</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>熊本南区城南町＊</Name><Code>4310432</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>宇城市</Name><Code>4321300</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>宇城市松橋町</Name><Code>4321300</Code><Int>1</Int></IntensityStation>
+<IntensityStation><Name>宇城市不知火町＊</Name><Code>4321330</Code><Int>1</Int></IntensityStation>
+<IntensityStation><Name>宇城市豊野町＊</Name><Code>4321335</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>熊本美里町</Name><Code>4334800</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>熊本美里町永富＊</Name><Code>4334820</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>御船町</Name><Code>4344100</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>御船町御船＊</Name><Code>4344131</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>山都町</Name><Code>4344700</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>山都町浜町＊</Name><Code>4344722</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>氷川町</Name><Code>4346800</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>氷川町島地＊</Name><Code>4346830</Code><Int>1</Int></IntensityStation>
+</City>
+</Area>
+<Area><Name>熊本県球磨</Name><Code>742</Code><MaxInt>1</MaxInt>
+<City><Name>五木村</Name><Code>4351100</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>五木村甲＊</Name><Code>4351120</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>球磨村</Name><Code>4351300</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>球磨村渡＊</Name><Code>4351331</Code><Int>1</Int></IntensityStation>
+</City>
+</Area>
+<Area><Name>熊本県天草・芦北</Name><Code>743</Code><MaxInt>1</MaxInt>
+<City><Name>上天草市</Name><Code>4321200</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>上天草市大矢野町</Name><Code>4321200</Code><Int>1</Int></IntensityStation>
+<IntensityStation><Name>上天草市松島町＊</Name><Code>4321234</Code><Int>1</Int></IntensityStation>
+<IntensityStation><Name>上天草市姫戸町＊</Name><Code>4321235</Code><Int>1</Int></IntensityStation>
+</City>
+<City><Name>芦北町</Name><Code>4348200</Code><MaxInt>1</MaxInt>
+<IntensityStation><Name>芦北町田浦町＊</Name><Code>4348220</Code><Int>1</Int></IntensityStation>
+</City>
+</Area>
+</Pref>
+</Observation>
+</Intensity>
+<Comments>
+<ForecastComment codeType="固定付加文">
+<Text>津波警報等（大津波警報・津波警報あるいは津波注意報）を発表中です。</Text>
+<Code>0211</Code>
+</ForecastComment>
+<VarComment codeType="固定付加文">
+<Text>＊印は気象庁以外の震度観測点についての情報です。</Text>
+<Code>0262</Code>
+</VarComment>
+</Comments>
+</Body>
+</Report>
