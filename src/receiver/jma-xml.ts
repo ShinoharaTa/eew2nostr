@@ -14,6 +14,8 @@ export interface JmaReport {
     title: string;
     reportDateTime: string;
     targetDateTime: string | null;
+    // 有効期限。竜巻注意情報のように解除電文が無く時限で失効する情報がある。
+    validDateTime: string | null;
     eventId: string | null;
     infoType: string;
     serial: string | null;
@@ -95,6 +97,7 @@ export const parseTelegram = (xml: string): JmaReport => {
       title: text(head.Title) ?? "",
       reportDateTime: text(head.ReportDateTime) ?? "",
       targetDateTime: text(head.TargetDateTime),
+      validDateTime: text(head.ValidDateTime),
       eventId: text(head.EventID),
       infoType: text(head.InfoType) ?? "",
       serial: text(head.Serial),
