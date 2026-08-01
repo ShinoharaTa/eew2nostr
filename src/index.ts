@@ -8,7 +8,8 @@ import { ConcrntPublisher } from "./publisher/concrnt.js";
 import { PublishDispatcher } from "./publisher/dispatcher.js";
 import { NostrPublisher } from "./publisher/nostr.js";
 import { DmdataReceiver } from "./receiver/dmdata.js";
-import { JmaFeedReceiver } from "./receiver/jma-feed.js";
+import { JmaFeedReceiver, type JmaTelegram } from "./receiver/jma-feed.js";
+import { AlertRecorder } from "./store/alert-recorder.js";
 import { NostrStatusMirror } from "./store/relay-mirror.js";
 import { SqliteStatusStore } from "./store/sqlite-store.js";
 import { StatusManager } from "./store/status-manager.js";
@@ -85,21 +86,29 @@ const main = async () => {
   };
   consume();
 
-  // 気象庁フィードの受信。分類と配信 (#20) はまだ入っていないため、
-  // 受信できていることをログで確認するに留める。
+  // 気象庁フィードの受信。分類してステータスに記録するところまでを行い、
+  // SNS への投稿はまだ接続しない (ルーティングは #20)。
+  const recorder = new AlertRecorder(status);
+  const jmaQueue = new AsyncQueue<JmaTelegram>();
+  const consumeJma = async () => {
+    while (true) {
+      const telegram = await jmaQueue.pop();
+      try {
+        await recorder.record(telegram);
+      } catch (e) {
+        logger.error("failed to record jma telegram", {
+          url: telegram.url,
+          err: e,
+        });
+      }
+    }
+  };
+  consumeJma();
+
   const jma = new JmaFeedReceiver(
     { feeds: jmaFeeds },
     {
-      onTelegram: (telegram) => {
-        logger.info("jma telegram received", {
-          type: telegram.type,
-          title: telegram.title,
-          eventId: telegram.report.head.eventId,
-          infoType: telegram.report.head.infoType,
-          serial: telegram.report.head.serial,
-          headline: telegram.report.head.headline,
-        });
-      },
+      onTelegram: (telegram) => jmaQueue.push(telegram),
       onFailure: (message, err) => {
         logger.error("jma feed unavailable", { err });
         void discord.notify(`🚨 ${message}`);
