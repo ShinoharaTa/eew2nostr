@@ -14,6 +14,11 @@ export const STATUS_EVENT_KIND = 30830;
 // 種別と状態を同じ t タグに入れると「発表中の緊急地震速報だけ」が表現できない。
 export const STATUS_LABEL_NAMESPACE = "jp.shino3.bosai.status";
 
+// 緊急度は状態 (l タグ) とは別のタグ名に載せる。
+// 同じ l タグに入れると購読側のフィルタが OR になり、
+// 「発表中かつ人命に関わるもの」を絞り込めなくなるため。
+export const SEVERITY_TAG = "s";
+
 export interface ReplaceablePublisherPort {
   publishReplaceable(params: {
     kind: number;
@@ -48,6 +53,7 @@ export class NostrStatusMirror implements StatusMirror {
         ["t", record.category],
         ["L", STATUS_LABEL_NAMESPACE],
         ["l", record.status, STATUS_LABEL_NAMESPACE],
+        [SEVERITY_TAG, record.severity],
       ],
       content: JSON.stringify(record),
       createdAt: this.nextCreatedAt(record.key),
