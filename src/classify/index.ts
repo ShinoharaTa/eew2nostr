@@ -35,10 +35,9 @@ const CLASSIFIERS: Record<string, ClassifyFn> = {
   VXSE52: classifyEarthquake, // 震源に関する情報
   VXSE53: classifyEarthquake, // 震源・震度に関する情報
   VXSE61: classifyEarthquake, // 顕著な地震の震源要素更新
-  // VXSE62 (長周期地震動に関する観測情報) は対象外。
-  // MaxInt に入るのが震度ではなく長周期地震動階級 (1〜4) のため、
-  // 震度スケールで緊急度を判定すると階級4を震度7と誤認する。
-  // 地震そのものは VXSE51 / VXSE53 で記録される。
+  // 長周期地震動に関する観測情報。震度 (MaxInt) と
+  // 長周期地震動階級 (MaxLgInt) を両方持つ。
+  VXSE62: classifyEarthquake,
 
   VTSE41: classifyTsunami, // 津波警報・注意報・予報
   VTSE51: classifyTsunami, // 津波情報

@@ -24,7 +24,7 @@ describe("classify", () => {
   });
 
   // 同一内容の二重配信・誤判定の元になる種別を対象から外していること
-  it.each(["VPWW54", "VPWW55", "VPWW56", "VXSE62", "VFVO52"])(
+  it.each(["VPWW54", "VPWW55", "VPWW56", "VFVO52"])(
     "%s は対象外にしている",
     (type) => {
       expect(isSupported(type)).toBe(false);
@@ -97,6 +97,25 @@ describe("classify", () => {
       const a = run("VXSE53")[0];
       expect(a.area?.name).toBe("熊本県天草・芦北地方");
       expect(a.detail.magnitude).toBe("3.8");
+    });
+  });
+
+  describe("長周期地震動 (VXSE62)", () => {
+    const alerts = run("VXSE62");
+
+    // 震度は MaxInt、長周期地震動階級は MaxLgInt と別フィールドで届く
+    it("震度と長周期地震動階級を両方保持する", () => {
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0].detail.maxInt).toBe("7");
+      expect(alerts[0].detail.maxLgInt).toBe("4");
+    });
+
+    it("震度と階級のうち高い方で緊急度を決める", () => {
+      expect(alerts[0].severity).toBe("emergency");
+    });
+
+    it("同じ地震なので震度速報と同じキーになる", () => {
+      expect(alerts[0].key).toMatch(/^earthquake:\d+$/);
     });
   });
 
