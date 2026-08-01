@@ -10,6 +10,13 @@ export type HazardType =
   | "tornado" // 竜巻注意情報
   | "heavy-rain"; // 記録的短時間大雨情報
 
+// 情報の性質。予測と実測は同じ災害種別の中に混在するため、
+// 種別とは別の軸として持つ。
+export type AlertKind =
+  | "forecast" // 予測・警戒 (これから危険が及ぶ)
+  | "observed" // 実測 (実際に観測された)
+  | "action"; // 行動指示 (避難指示など)
+
 // 警戒レベル相当で正規化した緊急度。
 export type Severity =
   | "emergency" // 人命に直結・即時行動 (レベル5相当)
@@ -29,6 +36,7 @@ export interface ClassifiedAlert {
   // ステータスのキー。同じ事象の更新は同じキーになる。
   key: string;
   hazard: HazardType;
+  kind: AlertKind;
   severity: Severity;
   state: AlertState;
   headline: string;
