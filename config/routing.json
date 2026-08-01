@@ -1,0 +1,34 @@
+{
+  "accounts": {
+    "main": {
+      "label": "全体",
+      "nostr": { "hexEnv": "HEX" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER",
+        "passwordEnv": "BSKY_PASSWORD"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY",
+        "channelEnv": "CONCRNT_CHANNEL"
+      }
+    },
+    "critical": {
+      "label": "人命に関わる情報",
+      "nostr": { "hexEnv": "HEX_CRITICAL" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER_CRITICAL",
+        "passwordEnv": "BSKY_PASSWORD_CRITICAL"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY_CRITICAL",
+        "channelEnv": "CONCRNT_CHANNEL_CRITICAL"
+      }
+    }
+  },
+  "routes": [
+    { "to": "main", "when": { "hazard": ["eew", "earthquake", "tsunami", "volcano"] } },
+    { "to": "main", "when": { "minSeverity": "warning" } },
+    { "to": "critical", "when": { "hazard": ["eew", "tsunami", "volcano"] } },
+    { "to": "critical", "when": { "minSeverity": "emergency" } }
+  ]
+}
