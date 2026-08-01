@@ -9,6 +9,11 @@ import { PublishDispatcher } from "./publisher/dispatcher.js";
 import { NostrPublisher } from "./publisher/nostr.js";
 import { DmdataReceiver } from "./receiver/dmdata.js";
 import { JmaFeedReceiver, type JmaTelegram } from "./receiver/jma-feed.js";
+import {
+  DEFAULT_ROUTING_CONFIG_PATH,
+  loadRoutingConfig,
+} from "./routing/config.js";
+import { Router } from "./routing/router.js";
 import { AlertRecorder } from "./store/alert-recorder.js";
 import { NostrStatusMirror } from "./store/relay-mirror.js";
 import { SqliteStatusStore } from "./store/sqlite-store.js";
@@ -25,6 +30,7 @@ const {
   CONCRNT_CHANNEL,
   DISCORD_WEBHOOK_URL,
   STATUS_DB_PATH,
+  ROUTING_CONFIG_PATH,
 } = process.env;
 
 const relays = [
@@ -88,7 +94,22 @@ const main = async () => {
 
   // 気象庁フィードの受信。分類してステータスに記録するところまでを行い、
   // SNS への投稿はまだ接続しない (ルーティングは #20)。
-  const recorder = new AlertRecorder(status);
+  // 配信先の定義。鍵が未設定のアカウントは投稿対象にならないが、
+  // 分類とルーティングの定義だけ先に用意しておける。
+  const router = new Router(
+    loadRoutingConfig(ROUTING_CONFIG_PATH ?? DEFAULT_ROUTING_CONFIG_PATH),
+  );
+  for (const account of router.accounts()) {
+    logger.info("routing account", {
+      key: account.key,
+      label: account.label,
+      nostr: account.nostr,
+      bluesky: account.bluesky,
+      concrnt: account.concrnt,
+    });
+  }
+
+  const recorder = new AlertRecorder(status, router);
   const jmaQueue = new AsyncQueue<JmaTelegram>();
   const consumeJma = async () => {
     while (true) {
