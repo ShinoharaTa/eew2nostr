@@ -23,10 +23,10 @@ const isNothing = (name: string | null, status: string | null): boolean =>
   name === "" ||
   name === "なし" ||
   status === "なし" ||
-  (status !== null && status.includes("警報・注意報はなし"));
+  (status?.includes("警報・注意報はなし") ?? false);
 
 const stateFromStatus = (status: string | null): AlertState =>
-  status !== null && status.includes("解除") ? "resolved" : "active";
+  status?.includes("解除") ? "resolved" : "active";
 
 // 気象警報・注意報 (VPWW53)。
 // 電文は府県 / 一次細分区域 / 市町村まとめ / 市町村 の4階層を含むため、
