@@ -84,15 +84,13 @@ export const classifyEarthquake = (
   const maxInt = text(observation?.MaxInt);
   // 長周期地震動に関する観測情報 (VXSE62) は震度と階級を両方持つ。
   // 階級は MaxInt ではなく MaxLgInt に入る。
+  // 緊急度は震度で決め、階級はそこに付与する情報として保持する。
   const maxLgInt = text(observation?.MaxLgInt);
   return [
     {
       key: `earthquake:${eventId}`,
       hazard: "earthquake",
-      severity: higher(
-        severityFromIntensity(maxInt),
-        severityFromLgIntensity(maxLgInt),
-      ),
+      severity: severityFromIntensity(maxInt),
       state: "active",
       headline: ctx.headline,
       reportedAt: ctx.reportedAt,
@@ -116,22 +114,6 @@ const severityFromIntensity = (maxInt: string | null): Severity => {
   if (["5-", "5+"].includes(maxInt)) return "warning";
   return "info";
 };
-
-// 長周期地震動階級。3で立っているのが困難、4ではわないと動けない。
-const severityFromLgIntensity = (maxLgInt: string | null): Severity => {
-  if (!maxLgInt) return "info";
-  const level = Number(maxLgInt);
-  if (Number.isNaN(level)) return "info";
-  if (level >= 4) return "emergency";
-  if (level === 3) return "warning";
-  return "info";
-};
-
-const SEVERITY_ORDER: Severity[] = ["info", "advisory", "warning", "emergency"];
-
-// 震度と長周期地震動階級のうち高い方を採る
-const higher = (a: Severity, b: Severity): Severity =>
-  SEVERITY_ORDER.indexOf(a) >= SEVERITY_ORDER.indexOf(b) ? a : b;
 
 // 津波警報・注意報 (VTSE41 / VTSE51)。津波予報区ごとに1件。
 export const classifyTsunami = (

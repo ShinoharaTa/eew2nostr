@@ -110,8 +110,21 @@ describe("classify", () => {
       expect(alerts[0].detail.maxLgInt).toBe("4");
     });
 
-    it("震度と階級のうち高い方で緊急度を決める", () => {
-      expect(alerts[0].severity).toBe("emergency");
+    // 緊急度は震度で決め、階級は付与情報として保持する
+    it("緊急度は震度で決まる", () => {
+      expect(alerts[0].severity).toBe("emergency"); // 震度7
+    });
+
+    it("階級が高くても震度が低ければ緊急度は上がらない", () => {
+      const report = load("VXSE62");
+      const observation = (
+        report.body.Intensity as Record<string, Record<string, unknown>>
+      ).Observation as Record<string, unknown>;
+      observation.MaxInt = "3";
+      observation.MaxLgInt = "4";
+      const [alert] = classify("VXSE62", report);
+      expect(alert.severity).toBe("info");
+      expect(alert.detail.maxLgInt).toBe("4");
     });
 
     it("同じ地震なので震度速報と同じキーになる", () => {
