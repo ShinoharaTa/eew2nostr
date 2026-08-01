@@ -16,6 +16,8 @@ const HAZARDS = new Set([
   "heavy-rain",
 ]);
 
+const KINDS = new Set(["forecast", "observed", "action"]);
+
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
 
@@ -90,6 +92,16 @@ export const validateRoutingConfig = (raw: unknown): RoutingConfig => {
           throw new Error(
             `routes[${index}] に未知の hazard があります: ${hazard}`,
           );
+        }
+      }
+    }
+    if (condition.kind !== undefined) {
+      if (!isStringArray(condition.kind)) {
+        throw new Error(`routes[${index}] の kind は文字列の配列にします。`);
+      }
+      for (const kind of condition.kind) {
+        if (!KINDS.has(kind)) {
+          throw new Error(`routes[${index}] に未知の kind があります: ${kind}`);
         }
       }
     }

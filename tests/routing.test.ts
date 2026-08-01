@@ -12,8 +12,9 @@ const target = (
   hazard: string,
   severity: string,
   state = "active",
+  kind = "forecast",
   // biome-ignore lint/suspicious/noExplicitAny: テスト用に文字列で組み立てる
-) => ({ hazard, severity, state }) as any;
+) => ({ hazard, kind, severity, state }) as any;
 
 const config: RoutingConfig = {
   accounts: {
@@ -64,6 +65,16 @@ describe("matches", () => {
     expect(matches(when, target("weather", "warning"))).toBe(true);
     expect(matches(when, target("weather", "advisory"))).toBe(false);
     expect(matches(when, target("earthquake", "warning"))).toBe(false);
+  });
+
+  it("kind で予測と実測を分けられる", () => {
+    const when: RouteCondition = { kind: ["observed"] };
+    expect(
+      matches(when, target("earthquake", "info", "active", "observed")),
+    ).toBe(true);
+    expect(
+      matches(when, target("weather", "warning", "active", "forecast")),
+    ).toBe(false);
   });
 
   it("state で絞り込める", () => {
@@ -168,6 +179,15 @@ describe("validateRoutingConfig", () => {
         routes: [{ to: "main", when: { hazard: ["typhoon"] } }],
       }),
     ).toThrow(/typhoon/);
+  });
+
+  it("未知の kind は例外にする", () => {
+    expect(() =>
+      validateRoutingConfig({
+        accounts: { main: {} },
+        routes: [{ to: "main", when: { kind: ["rumor"] } }],
+      }),
+    ).toThrow(/rumor/);
   });
 
   it("不正な minSeverity は例外にする", () => {

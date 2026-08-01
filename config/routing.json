@@ -1,34 +1,65 @@
 {
   "accounts": {
-    "main": {
-      "label": "全体",
-      "nostr": { "hexEnv": "HEX" },
+    "emergency": {
+      "label": "緊急速報",
+      "nostr": { "hexEnv": "HEX_EMERGENCY" },
       "bluesky": {
-        "identifierEnv": "BSKY_IDENTIFIER",
-        "passwordEnv": "BSKY_PASSWORD"
+        "identifierEnv": "BSKY_IDENTIFIER_EMERGENCY",
+        "passwordEnv": "BSKY_PASSWORD_EMERGENCY"
       },
       "concrnt": {
-        "subkeyEnv": "CONCRNT_SUBKEY",
-        "channelEnv": "CONCRNT_CHANNEL"
+        "subkeyEnv": "CONCRNT_SUBKEY_EMERGENCY",
+        "channelEnv": "CONCRNT_CHANNEL_EMERGENCY"
       }
     },
-    "critical": {
-      "label": "人命に関わる情報",
-      "nostr": { "hexEnv": "HEX_CRITICAL" },
+    "evacuation": {
+      "label": "避難指示",
+      "nostr": { "hexEnv": "HEX_EVACUATION" },
       "bluesky": {
-        "identifierEnv": "BSKY_IDENTIFIER_CRITICAL",
-        "passwordEnv": "BSKY_PASSWORD_CRITICAL"
+        "identifierEnv": "BSKY_IDENTIFIER_EVACUATION",
+        "passwordEnv": "BSKY_PASSWORD_EVACUATION"
       },
       "concrnt": {
-        "subkeyEnv": "CONCRNT_SUBKEY_CRITICAL",
-        "channelEnv": "CONCRNT_CHANNEL_CRITICAL"
+        "subkeyEnv": "CONCRNT_SUBKEY_EVACUATION",
+        "channelEnv": "CONCRNT_CHANNEL_EVACUATION"
+      }
+    },
+    "warning": {
+      "label": "警報・注意報",
+      "nostr": { "hexEnv": "HEX_WARNING" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER_WARNING",
+        "passwordEnv": "BSKY_PASSWORD_WARNING"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY_WARNING",
+        "channelEnv": "CONCRNT_CHANNEL_WARNING"
+      }
+    },
+    "observed": {
+      "label": "観測情報",
+      "nostr": { "hexEnv": "HEX_OBSERVED" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER_OBSERVED",
+        "passwordEnv": "BSKY_PASSWORD_OBSERVED"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY_OBSERVED",
+        "channelEnv": "CONCRNT_CHANNEL_OBSERVED"
       }
     }
   },
   "routes": [
-    { "to": "main", "when": { "hazard": ["eew", "earthquake", "tsunami", "volcano"] } },
-    { "to": "main", "when": { "minSeverity": "warning" } },
-    { "to": "critical", "when": { "hazard": ["eew", "tsunami", "volcano"] } },
-    { "to": "critical", "when": { "minSeverity": "emergency" } }
+    { "to": "emergency", "when": { "hazard": ["eew"] } },
+    { "to": "emergency", "when": { "minSeverity": "emergency" } },
+
+    { "to": "evacuation", "when": { "kind": ["action"] } },
+
+    {
+      "to": "warning",
+      "when": { "kind": ["forecast"], "minSeverity": "warning" }
+    },
+
+    { "to": "observed", "when": { "kind": ["observed"] } }
   ]
 }

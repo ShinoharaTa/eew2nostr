@@ -1,4 +1,4 @@
-import type { HazardType, Severity } from "../classify/types.js";
+import type { AlertKind, HazardType, Severity } from "../classify/types.js";
 import {
   type AccountConfig,
   type Route,
@@ -9,6 +9,7 @@ import {
 
 export interface RoutingTarget {
   hazard: HazardType;
+  kind: AlertKind;
   severity: Severity;
   state: string;
 }
@@ -29,6 +30,7 @@ export const matches = (
   if (!condition) return true;
   if (condition.hazard && !condition.hazard.includes(target.hazard))
     return false;
+  if (condition.kind && !condition.kind.includes(target.kind)) return false;
   if (
     condition.minSeverity &&
     severityRank(target.severity) < severityRank(condition.minSeverity)

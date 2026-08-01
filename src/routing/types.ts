@@ -1,4 +1,4 @@
-import type { HazardType, Severity } from "../classify/types.js";
+import type { AlertKind, HazardType, Severity } from "../classify/types.js";
 
 // 各SNSの接続情報。値そのものではなく環境変数名を持つ。
 // 鍵を用意する前でも分類とルーティングだけ先に定義できるようにする。
@@ -29,6 +29,8 @@ export interface AccountConfig {
 // (Nostr のフィルタと同じ意味論)。空オブジェクトは全件にマッチする。
 export interface RouteCondition {
   hazard?: HazardType[];
+  // 情報の性質。予測系だけ / 実測だけ を分けるのに使う。
+  kind?: AlertKind[];
   // この緊急度以上にマッチする。severity は順序を持つため閾値で書ける。
   minSeverity?: Severity;
   // 状態での絞り込み。省略時はすべての状態にマッチする。
