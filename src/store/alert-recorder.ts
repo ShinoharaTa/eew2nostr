@@ -11,6 +11,7 @@ import type { StatusManager } from "./status-manager.js";
 const initialRecord = (alert: ClassifiedAlert): AlertStatusRecord => ({
   key: alert.key,
   category: alert.hazard,
+  kind: alert.kind,
   severity: alert.severity,
   status: alert.state,
   publishedAt: alert.reportedAt,
@@ -29,6 +30,7 @@ const applyAlert = (
   alert: ClassifiedAlert,
 ): void => {
   record.category = alert.hazard;
+  record.kind = alert.kind;
   record.severity = alert.severity;
   record.status = alert.state;
   record.updatedAt = alert.reportedAt;
@@ -75,6 +77,7 @@ export class AlertRecorder {
     if (!this.router) return;
     const target = {
       hazard: alert.hazard,
+      kind: alert.kind,
       severity: alert.severity,
       state: alert.state,
     };
