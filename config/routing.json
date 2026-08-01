@@ -1,7 +1,19 @@
 {
   "accounts": {
+    "eew": {
+      "label": "緊急地震速報",
+      "nostr": { "hexEnv": "HEX_EEW" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER_EEW",
+        "passwordEnv": "BSKY_PASSWORD_EEW"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY_EEW",
+        "channelEnv": "CONCRNT_CHANNEL_EEW"
+      }
+    },
     "emergency": {
-      "label": "緊急速報",
+      "label": "津波・噴火などの速報",
       "nostr": { "hexEnv": "HEX_EMERGENCY" },
       "bluesky": {
         "identifierEnv": "BSKY_IDENTIFIER_EMERGENCY",
@@ -12,20 +24,8 @@
         "channelEnv": "CONCRNT_CHANNEL_EMERGENCY"
       }
     },
-    "evacuation": {
-      "label": "避難指示",
-      "nostr": { "hexEnv": "HEX_EVACUATION" },
-      "bluesky": {
-        "identifierEnv": "BSKY_IDENTIFIER_EVACUATION",
-        "passwordEnv": "BSKY_PASSWORD_EVACUATION"
-      },
-      "concrnt": {
-        "subkeyEnv": "CONCRNT_SUBKEY_EVACUATION",
-        "channelEnv": "CONCRNT_CHANNEL_EVACUATION"
-      }
-    },
     "warning": {
-      "label": "警報・注意報",
+      "label": "警報",
       "nostr": { "hexEnv": "HEX_WARNING" },
       "bluesky": {
         "identifierEnv": "BSKY_IDENTIFIER_WARNING",
@@ -50,10 +50,9 @@
     }
   },
   "routes": [
-    { "to": "emergency", "when": { "hazard": ["eew"] } },
-    { "to": "emergency", "when": { "minSeverity": "emergency" } },
+    { "to": "eew", "when": { "hazard": ["eew"] } },
 
-    { "to": "evacuation", "when": { "kind": ["action"] } },
+    { "to": "emergency", "when": { "minSeverity": "emergency" } },
 
     {
       "to": "warning",
