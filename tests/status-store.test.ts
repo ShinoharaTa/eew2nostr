@@ -16,11 +16,14 @@ const sampleRecord = (
 ): AlertStatusRecord => ({
   key: "eew:20240109012003",
   category: "eew",
+  severity: "info",
   status: "active",
   publishedAt: "2024-01-08T16:20:44.000Z",
   updatedAt: "2024-01-08T16:20:44.000Z",
+  expiresAt: null,
   serial: "1",
   headline: "石川県能登地方 震度3（M3.5）",
+  area: { name: "石川県能登地方", code: "390" },
   detail: { place: "石川県能登地方", magnitude: "3.5" },
   posts: {},
   revision: 1,
@@ -194,6 +197,7 @@ describe("NostrStatusMirror", () => {
       ["t", "eew"],
       ["L", STATUS_LABEL_NAMESPACE],
       ["l", "active", STATUS_LABEL_NAMESPACE],
+      ["s", "info"],
     ]);
     expect(JSON.parse(params.content).headline).toBe(
       "石川県能登地方 震度3（M3.5）",

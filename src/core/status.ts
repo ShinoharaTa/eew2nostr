@@ -1,8 +1,9 @@
 import type { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post";
+import type { HazardType, Severity } from "../classify/types.js";
 import type { EEWReport } from "./parser.js";
 
-// 防災情報の種別。気象警報・注意報を扱う際にここへ追加する。
-export type AlertCategory = "eew";
+// 防災情報の種別。分類層と同じ語彙を使う。
+export type AlertCategory = HazardType;
 
 // 防災イベントの状態。
 // active    : 発表中 (続報が来る可能性がある)
@@ -22,11 +23,17 @@ export interface AlertPosts {
 export interface AlertStatusRecord {
   key: string;
   category: AlertCategory;
+  // 警戒レベル相当で正規化した緊急度。配信先の振り分けに使う。
+  severity: Severity;
   status: AlertStatus;
   publishedAt: string;
   updatedAt: string;
+  // 有効期限。解除電文が無く時限で失効する情報 (竜巻注意情報など) で入る。
+  expiresAt: string | null;
   serial: string | null;
   headline: string;
+  // 対象地域。地震は震源、気象警報は一次細分区域。
+  area: { name: string; code: string } | null;
   detail: Record<string, unknown>;
   posts: AlertPosts;
   // 保存のたびに増える版番号。ミラー完了を記録する際の突き合わせに使う。
@@ -40,6 +47,13 @@ const eewHeadline = (report: EEWReport): string =>
 
 const eewStatus = (report: EEWReport): AlertStatus =>
   report.isLast ? "finalized" : "active";
+
+// 予想震度で緊急度を決める。実測の地震情報と同じ基準に揃える。
+const eewSeverity = (report: EEWReport): Severity => {
+  if (["6-", "6+", "7"].includes(report.forecast)) return "emergency";
+  if (["5-", "5+"].includes(report.forecast)) return "warning";
+  return "info";
+};
 
 const eewDetail = (report: EEWReport): Record<string, unknown> => ({
   place: report.place,
@@ -56,11 +70,14 @@ const eewDetail = (report: EEWReport): Record<string, unknown> => ({
 export const initialEEWRecord = (report: EEWReport): AlertStatusRecord => ({
   key: eewStatusKey(report.id),
   category: "eew",
+  severity: eewSeverity(report),
   status: eewStatus(report),
   publishedAt: report.reportTime.toISOString(),
   updatedAt: report.reportTime.toISOString(),
+  expiresAt: null,
   serial: report.serial,
   headline: eewHeadline(report),
+  area: { name: report.place, code: "" },
   detail: eewDetail(report),
   posts: {},
   revision: 0,
@@ -71,6 +88,8 @@ export const applyEEWReport = (
   record: AlertStatusRecord,
   report: EEWReport,
 ): void => {
+  record.severity = eewSeverity(report);
+  record.area = { name: report.place, code: "" };
   record.status = eewStatus(report);
   record.updatedAt = report.reportTime.toISOString();
   record.serial = report.serial;
