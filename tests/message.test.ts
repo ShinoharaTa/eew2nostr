@@ -1,0 +1,137 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { classify } from "../src/classify";
+import type { ClassifiedAlert } from "../src/classify/types";
+import {
+  MAX_GRAPHEMES,
+  formatAlerts,
+  groupForPosting,
+} from "../src/publisher/message";
+import { parseTelegram } from "../src/receiver/jma-xml";
+
+const alertsOf = (type: string): ClassifiedAlert[] =>
+  classify(
+    type,
+    parseTelegram(
+      fs.readFileSync(
+        path.join(__dirname, "fixtures/telegrams", `${type}.xml`),
+        "utf-8",
+      ),
+    ),
+  );
+
+const posts = (type: string): string[] =>
+  groupForPosting(alertsOf(type)).map((group) => formatAlerts(group));
+
+const graphemes = (text: string) => [...text].length;
+
+const ALL_TYPES = [
+  "VXSE53",
+  "VXSE62",
+  "VTSE41",
+  "VFVO50",
+  "VPWW53",
+  "VXWW50",
+  "VXKO70",
+  "VPHW50",
+  "VPOA50",
+];
+
+describe("投稿文の生成", () => {
+  it("地震情報は発生時刻・震源・最大震度を出す", () => {
+    const [text] = posts("VXSE53");
+    expect(text).toContain("【地震情報】18:41");
+    expect(text).toContain("熊本県天草・芦北地方");
+    expect(text).toContain("最大震度 3（M3.8）");
+  });
+
+  it("長周期地震動階級は本文に添える", () => {
+    const [text] = posts("VXSE62");
+    expect(text).toContain("最大震度 7");
+    expect(text).toContain("長周期地震動階級 4");
+  });
+
+  it("解除は見出しで分かるようにする", () => {
+    const [text] = posts("VTSE41");
+    expect(text).toContain("【津波注意報 解除】");
+    expect(text).toContain("有明・八代海");
+    // 見出しに解除を出すので種別名側には残さない
+    expect(text).not.toContain("津波注意報解除】");
+  });
+
+  it("噴火警報はレベルと変化を出す", () => {
+    const [text] = posts("VFVO50");
+    expect(text).toContain("【噴火警報】");
+    expect(text).toContain("口永良部島");
+    expect(text).toContain("レベル２（火口周辺規制）に引上げ");
+  });
+
+  it("竜巻注意情報は有効期限を出す", () => {
+    const [text] = posts("VPHW50");
+    expect(text).toContain("【竜巻注意情報】");
+    expect(text).toMatch(/\d{2}:\d{2}まで有効/);
+  });
+
+  // 一次細分区域名は単独では通じないものがあるため府県名を補う
+  it("府県予報区が1つなら地域名に府県名を補う", () => {
+    const [text] = posts("VPHW50");
+    expect(text).toContain("千葉県北西部");
+    expect(text).toContain("千葉県南部");
+  });
+
+  // 北海道のように1通に複数の府県予報区が含まれる場合は補完しない
+  it("府県予報区が複数ある電文では府県名を補わない", () => {
+    const text = posts("VPWW53").find((t) => t.includes("濃霧注意報"));
+    expect(text).toContain("上川地方、留萌地方");
+    expect(text).not.toContain("上川地方留萌地方");
+  });
+
+  describe("投稿単位のまとめ", () => {
+    it("同じ種別・状態の地域は1件の投稿にまとまる", () => {
+      const groups = groupForPosting(alertsOf("VPWW53"));
+      const fog = groups.find((g) => g[0].detail.kind === "濃霧注意報");
+      expect(fog?.length).toBeGreaterThan(1);
+      expect(formatAlerts(fog as ClassifiedAlert[])).toContain("、");
+    });
+
+    it("種別が違えば別の投稿になる", () => {
+      const kinds = groupForPosting(alertsOf("VPWW53")).map(
+        (g) => g[0].detail.kind,
+      );
+      expect(new Set(kinds).size).toBe(kinds.length);
+    });
+  });
+
+  describe("文字数", () => {
+    it.each(ALL_TYPES)("%s の投稿は Bluesky の上限に収まる", (type) => {
+      for (const text of posts(type)) {
+        expect(graphemes(text)).toBeLessThanOrEqual(MAX_GRAPHEMES);
+      }
+    });
+
+    // 地域が多い場合は列挙をやめて件数にする
+    it("地域が多すぎる場合は件数に置き換える", () => {
+      const [alert] = alertsOf("VPWW53");
+      const many = Array.from({ length: 60 }, (_, i) => ({
+        ...alert,
+        area: { name: `テスト地域${i}`, code: String(i) },
+      }));
+      const text = formatAlerts(many);
+      expect(graphemes(text)).toBeLessThanOrEqual(MAX_GRAPHEMES);
+      expect(text).toMatch(/ほか\d+地域|^\d+地域$/m);
+    });
+  });
+
+  describe("共通", () => {
+    it.each(ALL_TYPES)("%s の投稿に注記とタグが入る", (type) => {
+      for (const text of posts(type)) {
+        expect(text).toContain("※このシステムは試験運用中です");
+        expect(text).toMatch(/#\S+$/);
+      }
+    });
+
+    it("イベントが無ければ空文字を返す", () => {
+      expect(formatAlerts([])).toBe("");
+    });
+  });
+});
