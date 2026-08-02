@@ -1,8 +1,11 @@
+// このファイルは src/testing/plan だけを import する。
+// CLI 側 (src/testing/post-test) を import すると main() が走り、
+// テスト実行のたびに実際の投稿が発生してしまうため。
 import {
   availableTypes,
   parseArgs,
   postsForTelegram,
-} from "../src/testing/post-test";
+} from "../src/testing/plan";
 
 const DIR = "tests/fixtures/telegrams";
 
@@ -14,6 +17,7 @@ describe("parseArgs", () => {
       dryRun: false,
       relays: ["wss://relay-jp.shino3.net"],
       hexEnv: "HEX_TEST",
+      cleanup: false,
     });
   });
 
@@ -31,7 +35,12 @@ describe("parseArgs", () => {
       dryRun: true,
       relays: ["wss://a.example", "wss://b.example"],
       hexEnv: "HEX_OTHER",
+      cleanup: false,
     });
+  });
+
+  it("--cleanup を解釈する", () => {
+    expect(parseArgs(["--cleanup"]).cleanup).toBe(true);
   });
 });
 

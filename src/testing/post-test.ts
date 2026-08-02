@@ -1,66 +1,57 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
 import dotenv from "dotenv";
 import { npubEncode } from "nostr-tools/nip19";
 import { getPublicKey } from "nostr-tools/pure";
-import { classify } from "../classify/index.js";
 import { logger } from "../logger.js";
 import { DiscordNotifier } from "../notifier/discord.js";
-import { formatAlertPosts, groupForPosting } from "../publisher/message.js";
 import { NostrPublisher } from "../publisher/nostr.js";
-import { parseTelegram } from "../receiver/jma-xml.js";
+import { collectTestNotes } from "./cleanup.js";
+import {
+  type TestPostArgs,
+  availableTypes,
+  parseArgs,
+  postsForTelegram,
+} from "./plan.js";
 
 dotenv.config();
 
-// 実際に取得した電文をそのまま使う。
-const FIXTURE_DIR = "./tests/fixtures/telegrams";
-
-// テスト投稿は自前のリレーだけに送る。
-// 公開リレーへ試験用の投稿を撒かないための既定値。
-const DEFAULT_RELAYS = ["wss://relay-jp.shino3.net"];
-
-interface Args {
-  types: string[];
-  dryRun: boolean;
-  relays: string[];
-  hexEnv: string;
-}
-
-export const parseArgs = (argv: string[]): Args => {
-  const args: Args = {
-    types: [],
-    dryRun: false,
-    relays: DEFAULT_RELAYS,
-    hexEnv: "HEX_TEST",
-  };
-  for (const arg of argv) {
-    if (arg === "--dry-run") args.dryRun = true;
-    else if (arg.startsWith("--type=")) args.types.push(arg.slice(7));
-    else if (arg.startsWith("--relays="))
-      args.relays = arg.slice(9).split(",").filter(Boolean);
-    else if (arg.startsWith("--hex-env=")) args.hexEnv = arg.slice(10);
+// 過去のテスト投稿を集めて NIP-09 の削除イベントを流す。
+// テスト投稿がタイムラインに残り続けるのを防ぐ。
+const cleanup = async (
+  args: TestPostArgs,
+  hex: string | undefined,
+  pubkey: string | null,
+): Promise<void> => {
+  if (!pubkey) throw new Error("鍵が無いため削除対象を特定できません。");
+  const notes = await collectTestNotes(pubkey, args.relays);
+  logger.info("削除対象のテスト投稿", {
+    count: notes.length,
+    relays: args.relays,
+  });
+  for (const note of notes) {
+    logger.info(`  ${note.id.slice(0, 16)}… ${note.content.split("\n")[0]}`);
   }
-  return args;
-};
+  if (notes.length === 0) return;
+  if (args.dryRun || !hex) {
+    logger.info("[dry-run] 削除イベントは発行しません");
+    return;
+  }
 
-export const availableTypes = (dir: string = FIXTURE_DIR): string[] =>
-  fs
-    .readdirSync(dir)
-    .filter((name) => name.endsWith(".xml"))
-    .map((name) => path.basename(name, ".xml"))
-    .sort();
-
-// 電文1通から、投稿される文面をすべて組み立てる。
-export const postsForTelegram = (
-  type: string,
-  dir: string = FIXTURE_DIR,
-): string[][] => {
-  const report = parseTelegram(
-    fs.readFileSync(path.join(dir, `${type}.xml`), "utf-8"),
-  );
-  return groupForPosting(classify(type, report)).map((group) =>
-    formatAlertPosts(group),
-  );
+  const publisher = new NostrPublisher(hex, args.relays);
+  try {
+    const eventId = await publisher.publishDeletion(
+      notes.map((note) => note.id),
+      notes.map((note) => note.kind),
+      "テスト投稿の削除",
+    );
+    logger.info("削除イベントを発行しました", {
+      eventId,
+      deleted: notes.length,
+    });
+  } finally {
+    publisher.dispose();
+  }
+  const discord = new DiscordNotifier(process.env.DISCORD_WEBHOOK_URL ?? "");
+  await discord.notify(`🧹 テスト投稿 ${notes.length}件の削除を要求しました`);
 };
 
 const main = async () => {
@@ -79,10 +70,18 @@ const main = async () => {
     }
   }
 
-  if (hex) {
-    const pubkey = getPublicKey(new Uint8Array(Buffer.from(hex, "hex")));
+  const pubkey = hex
+    ? getPublicKey(new Uint8Array(Buffer.from(hex, "hex")))
+    : null;
+  if (pubkey) {
     logger.info("投稿するアカウント", { npub: npubEncode(pubkey), pubkey });
   }
+
+  if (args.cleanup) {
+    await cleanup(args, hex, pubkey);
+    return;
+  }
+
   logger.info("テスト投稿を開始します", {
     types,
     relays: args.relays,
