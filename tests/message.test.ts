@@ -66,27 +66,73 @@ describe("投稿文の生成", () => {
       expect(posts("VXSE62")).toHaveLength(1);
     });
 
-    // 文字数に収まっても震度の段階が丸ごと落ちるなら分ける。
-    // 情報が黙って消えるほうが害が大きい。
-    it("段階が欠ける場合は震度4以上と震度3に分ける", () => {
-      const many = (n: number, suffix: string) =>
-        Array.from({ length: n }, (_, i) => `${i}県${suffix}`);
-      const result = observed([
-        { intensity: "7", names: many(10, "北部") },
-        { intensity: "6+", names: many(15, "中部") },
-        { intensity: "5+", names: many(15, "南部") },
-        { intensity: "4", names: many(15, "東部") },
-        { intensity: "3", names: many(10, "西部") },
+    // 地震ごとに震度の分布が違うため、固定の境界では偏る
+    it("震度の分布に応じて分割数が変わる", () => {
+      const many = (n: number) =>
+        Array.from({ length: n }, (_, i) => `${i}県北部`);
+
+      // 強い震度が多い形 (東日本大震災型)
+      const wide = observed([
+        { intensity: "7", names: many(1) },
+        { intensity: "6+", names: many(8) },
+        { intensity: "6-", names: many(6) },
+        { intensity: "5+", names: many(20) },
+        { intensity: "5-", names: many(30) },
+        { intensity: "4", names: many(60) },
+        { intensity: "3", names: many(80) },
+      ]);
+      // 弱い震度が多い形 (能登半島地震型)
+      const narrow = observed([
+        { intensity: "7", names: many(1) },
+        { intensity: "6+", names: many(2) },
+        { intensity: "5+", names: many(5) },
+        { intensity: "4", names: many(30) },
+        { intensity: "3", names: many(60) },
+      ]);
+      // 小規模な形 (熊本地震型)
+      const small = observed([
+        { intensity: "7", names: many(1) },
+        { intensity: "5-", names: many(7) },
+        { intensity: "4", names: many(8) },
       ]);
 
-      expect(result).toHaveLength(2);
-      expect(result[0]).toContain("震度7");
-      expect(result[0]).not.toContain("震度3 ");
-      expect(result[1]).toContain("（続き）");
-      expect(result[1]).toContain("震度3 ");
-      for (const text of result) {
-        expect(graphemes(text)).toBeLessThanOrEqual(MAX_GRAPHEMES);
+      expect(wide.length).toBeGreaterThan(1);
+      expect(narrow.length).toBeGreaterThan(1);
+      expect(small).toHaveLength(1);
+      // どの形でも上限を超えない
+      for (const posts of [wide, narrow, small]) {
+        for (const text of posts) {
+          expect(graphemes(text)).toBeLessThanOrEqual(MAX_GRAPHEMES);
+        }
       }
+    });
+
+    it("分割時は各投稿の見出しに震度の範囲を出す", () => {
+      const many = (n: number) =>
+        Array.from({ length: n }, (_, i) => `${i}県北部`);
+      const result = observed([
+        { intensity: "7", names: many(20) },
+        { intensity: "4", names: many(30) },
+        { intensity: "3", names: many(30) },
+      ]);
+      expect(result.length).toBeGreaterThan(1);
+      for (const text of result) {
+        expect(text).toMatch(/^【地震情報】\d{2}:\d{2} 震度/);
+      }
+    });
+
+    it("1投稿で済む場合は範囲の見出しを付けない", () => {
+      const [text] = posts("VXSE62");
+      expect(text).toMatch(/^【地震情報】\d{2}:\d{2}\n/);
+    });
+
+    // 気象庁の表記に合わせる
+    it("震度は5弱・5強の表記で出す", () => {
+      const [text] = posts("VXSE62");
+      expect(text).toContain("震度6弱");
+      expect(text).toContain("震度5強");
+      expect(text).not.toContain("震度6-");
+      expect(text).not.toContain("震度5+");
     });
 
     it("分割後も震源と最大震度は各投稿に残る", () => {
@@ -94,9 +140,10 @@ describe("投稿文の生成", () => {
         Array.from({ length: n }, (_, i) => `${i}県${s}`);
       const result = observed([
         { intensity: "7", names: many(20, "北部") },
-        { intensity: "4", names: many(20, "東部") },
-        { intensity: "3", names: many(20, "西部") },
+        { intensity: "4", names: many(30, "東部") },
+        { intensity: "3", names: many(30, "西部") },
       ]);
+      expect(result.length).toBeGreaterThan(1);
       for (const text of result) {
         expect(text).toContain("熊本県熊本地方");
         expect(text).toContain("最大震度 7");
@@ -113,8 +160,10 @@ describe("投稿文の生成", () => {
 
   it("観測地域は震度の強い順に並ぶ", () => {
     const [text] = posts("VXSE62");
-    const order = [...text.matchAll(/震度([0-9+-]+) /g)].map((m) => m[1]);
-    expect(order.slice(0, 4)).toEqual(["7", "6-", "5+", "5-"]);
+    const order = [...text.matchAll(/震度([0-9]弱|[0-9]強|[0-9]) /g)].map(
+      (m) => m[1],
+    );
+    expect(order.slice(0, 4)).toEqual(["7", "6弱", "5強", "5弱"]);
   });
 
   it("震源を地域名に重ねて出さない", () => {

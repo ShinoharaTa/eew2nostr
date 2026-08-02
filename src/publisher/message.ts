@@ -1,7 +1,9 @@
 import { format, parseISO } from "date-fns";
 import {
+  MAX_SPLIT_POSTS,
   MIN_POSTED_INTENSITY,
-  SPLIT_INTENSITY,
+  intensityLabel,
+  intensityRangeLabel,
   intensityRank,
 } from "../classify/intensity.js";
 import { withPrefecture } from "../classify/prefecture.js";
@@ -39,6 +41,41 @@ const observedGroups = (alert: ClassifiedAlert): ObservedGroup[] => {
   return Array.isArray(value) ? (value as ObservedGroup[]) : [];
 };
 
+// 段階1件を全地域込みで並べたときの長さ
+const groupCost = (group: ObservedGroup): number =>
+  graphemes(
+    `震度${intensityLabel(group.intensity)} ${group.names.join("、")}`,
+  ) + 1;
+
+// 震度の強い順に、予算に収まるところまで詰めて投稿を切り分ける。
+//
+// 地震ごとに震度の分布が大きく違うため、固定の境界では偏る。
+// 東日本大震災は強い震度の地域が多く、能登半島地震は弱い震度が多い。
+// 段階の境界でだけ切ることで、どちらの形でも均される。
+//
+// 上限に達したら残りは最後の投稿にまとめ、地域名の省略で吸収する。
+const packGroups = (
+  groups: ObservedGroup[],
+  budget: number,
+): ObservedGroup[][] => {
+  const posts: ObservedGroup[][] = [];
+  let current: ObservedGroup[] = [];
+  let used = 0;
+  for (const group of groups) {
+    const cost = groupCost(group);
+    const isLastPost = posts.length + 1 >= MAX_SPLIT_POSTS;
+    if (current.length > 0 && used + cost > budget && !isLastPost) {
+      posts.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(group);
+    used += cost;
+  }
+  if (current.length > 0) posts.push(current);
+  return posts;
+};
+
 // 震度を観測した地域を強い順に並べる。震源だけでは
 // どの地域が揺れたか伝わらないため添える。
 // 文字数に収まらない分は地域名を件数に置き換える。
@@ -46,7 +83,7 @@ const observedLines = (groups: ObservedGroup[], budget: number): string[] => {
   const lines: string[] = [];
   let remaining = budget;
   for (const group of groups) {
-    const head = `震度${group.intensity} `;
+    const head = `震度${intensityLabel(group.intensity)} `;
     const full = head + group.names.join("、");
     if (graphemes(full) <= remaining) {
       lines.push(full);
@@ -212,41 +249,39 @@ export const formatAlertPosts = (
   );
   if (groups.length === 0) return [base];
 
-  const build = (
-    selected: ObservedGroup[],
-    suffix: string,
-  ): { text: string; complete: boolean } | null => {
+  const build = (selected: ObservedGroup[], label: string): string | null => {
     if (selected.length === 0) return null;
-    const title = head + suffix;
+    // 分割したときだけ、その投稿が扱う震度の範囲を見出しに出す
+    const title = label === "" ? head : `${head} ${label}`;
     const used = graphemes(assemble(title, areas, lines, hashtag));
     const observed = observedLines(
       selected,
       Math.max(0, maxGraphemes - used - 2),
     );
     if (observed.length === 0) return null;
-    return {
-      text: assemble(title, areas, [...lines, "", ...observed], hashtag),
-      // 震度の段階を丸ごと落とさずに収まったか。
-      // 地域名が「ほかN地域」に縮むのは許容する。
-      complete: observed.length === selected.length,
-    };
+    return assemble(title, areas, [...lines, "", ...observed], hashtag);
   };
 
-  // 1件に全段階が収まるならそのまま。文字数に収まっても段階が欠ける場合は
-  // 情報が黙って消えるため、震度4以上と震度3に分ける。
-  const single = build(groups, "");
-  if (single?.complete && graphemes(single.text) <= maxGraphemes) {
-    return [single.text];
+  // 予算は、見出し・震源・本文・注記・タグを除いた残り。
+  // 分割時は範囲の見出しが加わるため、その分を見込んでおく。
+  const overhead = graphemes(
+    assemble(`${head} 震度6強〜5弱`, areas, lines, hashtag),
+  );
+  const packed = packGroups(groups, Math.max(0, maxGraphemes - overhead - 2));
+
+  // 1件に収まるなら範囲の見出しは付けない
+  if (packed.length <= 1) {
+    const single = build(groups, "");
+    return single !== null ? [single] : [base];
   }
 
-  const split = intensityRank(SPLIT_INTENSITY);
   const posts: string[] = [];
-  for (const [selected, suffix] of [
-    [groups.filter((g) => intensityRank(g.intensity) >= split), ""],
-    [groups.filter((g) => intensityRank(g.intensity) < split), "（続き）"],
-  ] as [ObservedGroup[], string][]) {
-    const built = build(selected, suffix);
-    if (built !== null) posts.push(built.text);
+  for (const selected of packed) {
+    const built = build(
+      selected,
+      intensityRangeLabel(selected.map((g) => g.intensity)),
+    );
+    if (built !== null) posts.push(built);
   }
   return posts.length > 0 ? posts : [base];
 };
