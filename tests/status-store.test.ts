@@ -28,6 +28,7 @@ const sampleRecord = (
   areaType: "震央地名",
   detail: { place: "石川県能登地方", magnitude: "3.5" },
   posts: {},
+  deliveries: {},
   revision: 1,
   ...overrides,
 });

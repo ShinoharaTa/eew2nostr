@@ -3,6 +3,7 @@ import type { ClassifiedAlert } from "../classify/types.js";
 import type { AlertStatusRecord } from "../core/status.js";
 import { logger } from "../logger.js";
 import type { JmaTelegram } from "../receiver/jma-feed.js";
+import type { Delivery } from "../publisher/delivery.js";
 import type { Router } from "../routing/router.js";
 import type { StatusManager } from "./status-manager.js";
 
@@ -23,6 +24,7 @@ const initialRecord = (alert: ClassifiedAlert): AlertStatusRecord => ({
   areaType: alert.areaType,
   detail: alert.detail,
   posts: {},
+  deliveries: {},
   revision: 0,
 });
 
@@ -49,6 +51,8 @@ export class AlertRecorder {
     private status: StatusManager,
     // 配信先の判定。投稿はまだ行わず、どこへ流れるはずかをログに残す。
     private router?: Router,
+    // 配信層。未指定なら記録だけ行う。
+    private delivery?: Delivery,
   ) {}
 
   async record(telegram: JmaTelegram): Promise<number> {
@@ -65,6 +69,9 @@ export class AlertRecorder {
       );
       this.logRouting(alert);
     }
+    // 記録を終えてから配信する。投稿が全滅しても記録は残る。
+    this.delivery?.deliver([...latest.values()]);
+
     logger.info("alerts recorded", {
       type: telegram.type,
       count: latest.size,

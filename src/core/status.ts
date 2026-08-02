@@ -19,6 +19,10 @@ export interface AlertPosts {
   concrnt?: { root: string };
 }
 
+// アカウントごとの投稿参照。4系統に配信するため、
+// 同じ防災イベントでもアカウント別にスレッドを持つ。
+export type AlertDeliveries = Record<string, AlertPosts>;
+
 // 防災イベント1件の状態を表すレコード。種別を跨いで同じ形を使う。
 export interface AlertStatusRecord {
   key: string;
@@ -40,6 +44,9 @@ export interface AlertStatusRecord {
   areaType: string | null;
   detail: Record<string, unknown>;
   posts: AlertPosts;
+  // 4系統への配信先ごとの投稿参照。既存の posts は
+  // 緊急地震速報の従来経路が使い続ける。
+  deliveries: AlertDeliveries;
   // 保存のたびに増える版番号。ミラー完了を記録する際の突き合わせに使う。
   revision: number;
 }
@@ -86,6 +93,7 @@ export const initialEEWRecord = (report: EEWReport): AlertStatusRecord => ({
   areaType: "震央地名",
   detail: eewDetail(report),
   posts: {},
+  deliveries: {},
   revision: 0,
 });
 

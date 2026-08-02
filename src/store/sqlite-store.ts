@@ -19,6 +19,7 @@ interface Row {
   area_type: string | null;
   detail: string;
   posts: string;
+  deliveries: string | null;
   revision: number;
 }
 
@@ -38,6 +39,7 @@ const toRecord = (row: Row): AlertStatusRecord => ({
   areaType: row.area_type ?? null,
   detail: JSON.parse(row.detail),
   posts: JSON.parse(row.posts),
+  deliveries: row.deliveries ? JSON.parse(row.deliveries) : {},
   revision: row.revision,
 });
 
@@ -78,6 +80,7 @@ export class SqliteStatusStore implements StatusStore {
         area_type    TEXT,
         detail       TEXT NOT NULL,
         posts        TEXT NOT NULL,
+        deliveries   TEXT,
         revision     INTEGER NOT NULL,
         mirrored_at  TEXT
       );
@@ -104,6 +107,7 @@ export class SqliteStatusStore implements StatusStore {
       ["expires_at", "TEXT"],
       ["area", "TEXT"],
       ["area_type", "TEXT"],
+      ["deliveries", "TEXT"],
     ]) {
       if (!existing.has(name)) {
         db.exec(`ALTER TABLE alert_status ADD COLUMN ${name} ${type}`);
@@ -123,8 +127,8 @@ export class SqliteStatusStore implements StatusStore {
       .prepare(`
         INSERT INTO alert_status (
           key, category, kind, severity, status, published_at, updated_at,
-          expires_at, serial, headline, area, area_type, detail, posts, revision, mirrored_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+          expires_at, serial, headline, area, area_type, detail, posts, deliveries, revision, mirrored_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
         ON CONFLICT(key) DO UPDATE SET
           category     = excluded.category,
           kind         = excluded.kind,
@@ -139,6 +143,7 @@ export class SqliteStatusStore implements StatusStore {
           area_type    = excluded.area_type,
           detail       = excluded.detail,
           posts        = excluded.posts,
+          deliveries   = excluded.deliveries,
           revision     = excluded.revision,
           mirrored_at  = NULL
       `)
@@ -157,6 +162,7 @@ export class SqliteStatusStore implements StatusStore {
         record.areaType,
         JSON.stringify(record.detail),
         JSON.stringify(record.posts),
+        JSON.stringify(record.deliveries),
         record.revision,
       );
   }
