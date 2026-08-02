@@ -45,6 +45,25 @@ describe("投稿文の生成", () => {
     expect(text).toContain("最大震度 3（M3.8）");
   });
 
+  // 震源だけではどの地域が揺れたか伝わらない。
+  // 電文は都道府県 > 細分区域 > 市町村の階層を持つので細分区域を出す。
+  it("震度を観測した地域を震度ごとに出す", () => {
+    const [text] = posts("VXSE53");
+    expect(text).toContain("震度3 熊本県天草・芦北");
+    expect(text).toContain("震度2 熊本県熊本");
+  });
+
+  it("観測地域は震度の強い順に並ぶ", () => {
+    const [text] = posts("VXSE62");
+    const order = [...text.matchAll(/震度([0-9+-]+) /g)].map((m) => m[1]);
+    expect(order.slice(0, 4)).toEqual(["7", "6-", "5+", "5-"]);
+  });
+
+  it("震源を地域名に重ねて出さない", () => {
+    const [text] = posts("VXSE53");
+    expect(text).not.toContain("熊本県天草・芦北地方 熊本県天草・芦北地方");
+  });
+
   it("長周期地震動階級は本文に添える", () => {
     const [text] = posts("VXSE62");
     expect(text).toContain("最大震度 7");
@@ -154,9 +173,17 @@ describe("投稿文の生成", () => {
   describe("共通", () => {
     it.each(ALL_TYPES)("%s の投稿に注記とタグが入る", (type) => {
       for (const text of posts(type)) {
-        expect(text).toContain("※このシステムは試験運用中です");
+        expect(text).toContain("※テスト運用中です");
         expect(text).toMatch(/#\S+$/);
       }
+    });
+
+    // 言語判定の保険としてひらがなとカタカナを混ぜておく
+    it("注記にひらがなとカタカナが含まれる", () => {
+      const [text] = posts("VXSE53");
+      const note = text.split("\n").find((l) => l.startsWith("※")) ?? "";
+      expect(note).toMatch(/[ぁ-ゟ]/);
+      expect(note).toMatch(/[゠-ヿ]/);
     });
 
     it("イベントが無ければ空文字を返す", () => {

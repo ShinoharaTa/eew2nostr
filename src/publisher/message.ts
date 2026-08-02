@@ -5,7 +5,9 @@ import type { ClassifiedAlert, HazardType } from "../classify/types.js";
 // 収まらない分は件数で表す。
 export const MAX_GRAPHEMES = 300;
 
-const FOOTER = "※このシステムは試験運用中です。突然終了する場合があります。";
+// 言語判定の保険。ひらがなとカタカナを混ぜておくと、
+// 漢字が主体の防災情報でも日本語と推定されやすい。
+const FOOTER = "※テスト運用中です。";
 
 const HASHTAG: Record<HazardType, string> = {
   eew: "#eew",
@@ -20,6 +22,41 @@ const HASHTAG: Record<HazardType, string> = {
 };
 
 const graphemes = (text: string): number => [...text].length;
+
+interface ObservedGroup {
+  intensity: string;
+  names: string[];
+}
+
+const observedGroups = (alert: ClassifiedAlert): ObservedGroup[] => {
+  const value = alert.detail.observed;
+  return Array.isArray(value) ? (value as ObservedGroup[]) : [];
+};
+
+// 震度を観測した地域を強い順に並べる。震源だけでは
+// どの地域が揺れたか伝わらないため添える。
+// 文字数に収まらない分は地域名を件数に置き換える。
+const observedLines = (groups: ObservedGroup[], budget: number): string[] => {
+  const lines: string[] = [];
+  let remaining = budget;
+  for (const group of groups) {
+    const head = `震度${group.intensity} `;
+    const full = head + group.names.join("、");
+    if (graphemes(full) <= remaining) {
+      lines.push(full);
+      remaining -= graphemes(full) + 1;
+      continue;
+    }
+    const summary = `${head}${group.names[0]} ほか${group.names.length - 1}地域`;
+    if (group.names.length > 1 && graphemes(summary) <= remaining) {
+      lines.push(summary);
+      remaining -= graphemes(summary) + 1;
+      continue;
+    }
+    break;
+  }
+  return lines;
+};
 
 const hhmm = (iso: string | null | undefined): string => {
   if (!iso) return "";
@@ -152,7 +189,10 @@ export const formatAlerts = (
 
   // 一次細分区域は「北西部」のように単独では通じないため府県名を補う
   const prefecture = detailText(first, "prefecture");
-  const spot = detailText(first, "place");
+  // 記録的短時間大雨だけは地域 (府県) に地点名を添える。
+  // 地震の place は震源で、地域名と同じ値のため添えない。
+  const spot =
+    first.hazard === "heavy-rain" ? detailText(first, "place") : null;
   const names = [
     ...new Set(
       alerts
@@ -168,10 +208,17 @@ export const formatAlerts = (
   ];
   // 見出し・本文・注記・タグを除いた残りを地域名に割り当てる
   const fixed = graphemes(assemble(head, "", lines, hashtag));
+  const areas = areaLine(names, Math.max(0, maxGraphemes - fixed));
+
+  // 地震は震度を観測した地域を添える。残りの文字数に収まる分だけ出す。
+  const groups = observedGroups(first);
+  if (groups.length === 0) return assemble(head, areas, lines, hashtag);
+  const used = graphemes(assemble(head, areas, lines, hashtag));
+  const observed = observedLines(groups, Math.max(0, maxGraphemes - used - 2));
   return assemble(
     head,
-    areaLine(names, Math.max(0, maxGraphemes - fixed)),
-    lines,
+    areas,
+    [...lines, ...(observed.length ? [""] : []), ...observed],
     hashtag,
   );
 };

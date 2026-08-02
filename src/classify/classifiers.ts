@@ -99,6 +99,33 @@ export const classifyWeather = (
   return alerts;
 };
 
+// 震度を観測した地域を、震度ごとにまとめる。
+// 電文は 都道府県 > 細分区域 > 市町村 > 観測点 の階層を持つ。
+// 「長野県北部」に相当する細分区域を採る。
+export const observedAreas = (
+  report: JmaReport,
+): { intensity: string; names: string[] }[] => {
+  const observation = asArray(node(report.body.Intensity)?.Observation)[0];
+  const byIntensity = new Map<string, string[]>();
+  for (const pref of asArray(observation?.Pref)) {
+    for (const target of asArray(pref.Area)) {
+      const name = text(target.Name);
+      const intensity = text(target.MaxInt);
+      if (!name || !intensity) continue;
+      const names = byIntensity.get(intensity);
+      if (names) names.push(name);
+      else byIntensity.set(intensity, [name]);
+    }
+  }
+  return [...byIntensity.entries()]
+    .map(([intensity, names]) => ({ intensity, names }))
+    .sort((a, b) => intensityRank(b.intensity) - intensityRank(a.intensity));
+};
+
+// 震度は "5-" "5+" のような文字列。強い順に並べるための順序を与える。
+const INTENSITY_ORDER = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"];
+const intensityRank = (value: string): number => INTENSITY_ORDER.indexOf(value);
+
 // 震度速報・震源震度情報など、実測の地震情報 (VXSE5x)。
 // 同じ地震の続報は同じ eventId になるため、キーもそれに揃える。
 export const classifyEarthquake = (
@@ -132,6 +159,8 @@ export const classifyEarthquake = (
         magnitude: text(earthquake?.Magnitude),
         originTime: text(earthquake?.OriginTime),
         place: hypocenter?.name ?? null,
+        // どの地域で震度いくつを観測したか。震源だけでは伝わらないため。
+        observed: observedAreas(report),
       },
     },
   ];
