@@ -4,6 +4,7 @@ import { classify } from "../src/classify";
 import type { ClassifiedAlert } from "../src/classify/types";
 import {
   MAX_GRAPHEMES,
+  formatAlertPosts,
   formatAlerts,
   groupForPosting,
 } from "../src/publisher/message";
@@ -45,12 +46,69 @@ describe("投稿文の生成", () => {
     expect(text).toContain("最大震度 3（M3.8）");
   });
 
+  // 震度1〜2は件数が多く、全国配信では読み手の判断にほとんど寄与しない
+  describe("地震の観測地域", () => {
+    const observed = (groups: { intensity: string; names: string[] }[]) => {
+      const [alert] = alertsOf("VXSE62");
+      return formatAlertPosts([
+        { ...alert, detail: { ...alert.detail, observed: groups } },
+      ]);
+    };
+
+    it("震度1〜2は載せない", () => {
+      const [text] = posts("VXSE53");
+      expect(text).toContain("震度3 ");
+      expect(text).not.toContain("震度2 ");
+      expect(text).not.toContain("震度1 ");
+    });
+
+    it("収まるなら1投稿にまとめる", () => {
+      expect(posts("VXSE62")).toHaveLength(1);
+    });
+
+    // 文字数に収まっても震度の段階が丸ごと落ちるなら分ける。
+    // 情報が黙って消えるほうが害が大きい。
+    it("段階が欠ける場合は震度4以上と震度3に分ける", () => {
+      const many = (n: number, suffix: string) =>
+        Array.from({ length: n }, (_, i) => `${i}県${suffix}`);
+      const result = observed([
+        { intensity: "7", names: many(10, "北部") },
+        { intensity: "6+", names: many(15, "中部") },
+        { intensity: "5+", names: many(15, "南部") },
+        { intensity: "4", names: many(15, "東部") },
+        { intensity: "3", names: many(10, "西部") },
+      ]);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toContain("震度7");
+      expect(result[0]).not.toContain("震度3 ");
+      expect(result[1]).toContain("（続き）");
+      expect(result[1]).toContain("震度3 ");
+      for (const text of result) {
+        expect(graphemes(text)).toBeLessThanOrEqual(MAX_GRAPHEMES);
+      }
+    });
+
+    it("分割後も震源と最大震度は各投稿に残る", () => {
+      const many = (n: number, s: string) =>
+        Array.from({ length: n }, (_, i) => `${i}県${s}`);
+      const result = observed([
+        { intensity: "7", names: many(20, "北部") },
+        { intensity: "4", names: many(20, "東部") },
+        { intensity: "3", names: many(20, "西部") },
+      ]);
+      for (const text of result) {
+        expect(text).toContain("熊本県熊本地方");
+        expect(text).toContain("最大震度 7");
+      }
+    });
+  });
+
   // 震源だけではどの地域が揺れたか伝わらない。
   // 電文は都道府県 > 細分区域 > 市町村の階層を持つので細分区域を出す。
   it("震度を観測した地域を震度ごとに出す", () => {
     const [text] = posts("VXSE53");
     expect(text).toContain("震度3 熊本県天草・芦北");
-    expect(text).toContain("震度2 熊本県熊本");
   });
 
   it("観測地域は震度の強い順に並ぶ", () => {

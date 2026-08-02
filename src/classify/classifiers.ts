@@ -1,4 +1,5 @@
 import type { JmaReport } from "../receiver/jma-xml.js";
+import { intensityRank } from "./intensity.js";
 import {
   levelFromName,
   severityFromName,
@@ -101,10 +102,6 @@ export const observedAreas = (
     .map(([intensity, names]) => ({ intensity, names }))
     .sort((a, b) => intensityRank(b.intensity) - intensityRank(a.intensity));
 };
-
-// 震度は "5-" "5+" のような文字列。強い順に並べるための順序を与える。
-const INTENSITY_ORDER = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"];
-const intensityRank = (value: string): number => INTENSITY_ORDER.indexOf(value);
 
 // 震度速報・震源震度情報など、実測の地震情報 (VXSE5x)。
 // 同じ地震の続報は同じ eventId になるため、キーもそれに揃える。

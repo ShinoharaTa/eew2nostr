@@ -1,4 +1,9 @@
 import { format, parseISO } from "date-fns";
+import {
+  MIN_POSTED_INTENSITY,
+  SPLIT_INTENSITY,
+  intensityRank,
+} from "../classify/intensity.js";
 import { withPrefecture } from "../classify/prefecture.js";
 import type { ClassifiedAlert, HazardType } from "../classify/types.js";
 
@@ -164,14 +169,17 @@ const assemble = (
     .filter((part) => part !== "")
     .join("\n\n");
 
-// 同じ電文から生まれた同種の防災イベントを1件の投稿にまとめる。
+// 同じ電文から生まれた同種の防災イベントを投稿文にする。
 // 気象警報は一次細分区域ごとにイベントが分かれるため、
 // 個別に投稿すると同じ内容が地域の数だけ並んでしまう。
-export const formatAlerts = (
+//
+// 地震は観測地域が多く1件に収まらないことがあるため、
+// 震度4以上と震度3で分けた複数の投稿になることがある。
+export const formatAlertPosts = (
   alerts: ClassifiedAlert[],
   maxGraphemes: number = MAX_GRAPHEMES,
-): string => {
-  if (alerts.length === 0) return "";
+): string[] => {
+  if (alerts.length === 0) return [];
   const first = alerts[0];
   const name = alertName(first);
   // 震度速報は Earthquake 要素を持たず発生時刻が無いため、発表時刻で代える
@@ -195,18 +203,59 @@ export const formatAlerts = (
   const fixed = graphemes(assemble(head, "", lines, hashtag));
   const areas = areaLine(names, Math.max(0, maxGraphemes - fixed));
 
-  // 地震は震度を観測した地域を添える。残りの文字数に収まる分だけ出す。
-  const groups = observedGroups(first);
-  if (groups.length === 0) return assemble(head, areas, lines, hashtag);
-  const used = graphemes(assemble(head, areas, lines, hashtag));
-  const observed = observedLines(groups, Math.max(0, maxGraphemes - used - 2));
-  return assemble(
-    head,
-    areas,
-    [...lines, ...(observed.length ? [""] : []), ...observed],
-    hashtag,
+  const base = assemble(head, areas, lines, hashtag);
+
+  // 地震は震度を観測した地域を添える。
+  // 震度1〜2は件数が多く全国配信では判断に寄与しないため落とす。
+  const groups = observedGroups(first).filter(
+    (g) => intensityRank(g.intensity) >= intensityRank(MIN_POSTED_INTENSITY),
   );
+  if (groups.length === 0) return [base];
+
+  const build = (
+    selected: ObservedGroup[],
+    suffix: string,
+  ): { text: string; complete: boolean } | null => {
+    if (selected.length === 0) return null;
+    const title = head + suffix;
+    const used = graphemes(assemble(title, areas, lines, hashtag));
+    const observed = observedLines(
+      selected,
+      Math.max(0, maxGraphemes - used - 2),
+    );
+    if (observed.length === 0) return null;
+    return {
+      text: assemble(title, areas, [...lines, "", ...observed], hashtag),
+      // 震度の段階を丸ごと落とさずに収まったか。
+      // 地域名が「ほかN地域」に縮むのは許容する。
+      complete: observed.length === selected.length,
+    };
+  };
+
+  // 1件に全段階が収まるならそのまま。文字数に収まっても段階が欠ける場合は
+  // 情報が黙って消えるため、震度4以上と震度3に分ける。
+  const single = build(groups, "");
+  if (single?.complete && graphemes(single.text) <= maxGraphemes) {
+    return [single.text];
+  }
+
+  const split = intensityRank(SPLIT_INTENSITY);
+  const posts: string[] = [];
+  for (const [selected, suffix] of [
+    [groups.filter((g) => intensityRank(g.intensity) >= split), ""],
+    [groups.filter((g) => intensityRank(g.intensity) < split), "（続き）"],
+  ] as [ObservedGroup[], string][]) {
+    const built = build(selected, suffix);
+    if (built !== null) posts.push(built.text);
+  }
+  return posts.length > 0 ? posts : [base];
 };
+
+// 1件の投稿文にまとめる。複数に分かれる場合は先頭を返す。
+export const formatAlerts = (
+  alerts: ClassifiedAlert[],
+  maxGraphemes: number = MAX_GRAPHEMES,
+): string => formatAlertPosts(alerts, maxGraphemes)[0] ?? "";
 
 export const formatAlert = (
   alert: ClassifiedAlert,
