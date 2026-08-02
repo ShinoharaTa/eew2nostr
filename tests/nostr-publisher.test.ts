@@ -107,6 +107,36 @@ describe("NostrPublisher", () => {
     expect(pool.publish.mock.calls[0][0]).toEqual(statusRelays);
   });
 
+  // 宣言が無いとクライアント側の言語推定に委ねられ、
+  // 漢字が主体の防災情報は日本語と判定されないことがある
+  it("kind 1 に言語を宣言する", async () => {
+    const publisher = new NostrPublisher(hex, relays, pool);
+    await publisher.publishNote({ content: "テスト", time: new Date() });
+
+    const event = pool.publish.mock.calls[0][1];
+    expect(event.tags).toEqual(
+      expect.arrayContaining([
+        ["L", "ISO-639-1"],
+        ["l", "ja", "ISO-639-1"],
+      ]),
+    );
+  });
+
+  it("リプライでも言語の宣言は残る", async () => {
+    const publisher = new NostrPublisher(hex, relays, pool);
+    await publisher.publishNote({
+      content: "テスト",
+      time: new Date(),
+      reply: { root: "a".repeat(64), parent: null },
+    });
+
+    const event = pool.publish.mock.calls[0][1];
+    expect(event.tags).toEqual(
+      expect.arrayContaining([["l", "ja", "ISO-639-1"]]),
+    );
+    expect(event.tags.some((t: string[]) => t[0] === "e")).toBe(true);
+  });
+
   it("dispose は使った宛先をすべて閉じる", async () => {
     const publisher = new NostrPublisher(hex, relays, pool);
     await publisher.publishNote({ content: "hello", time: new Date() });
