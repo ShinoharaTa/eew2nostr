@@ -185,6 +185,11 @@ export class SqliteStatusStore implements StatusStore {
       .run(new Date().toISOString(), key, revision);
   }
 
+  // 同じ DB ファイルに他のテーブルを置くために使う
+  handle(): DatabaseSync {
+    return this.database();
+  }
+
   async close(): Promise<void> {
     this.db?.close();
     this.db = null;

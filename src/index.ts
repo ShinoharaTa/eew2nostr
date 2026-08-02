@@ -14,6 +14,7 @@ import { Delivery } from "./publisher/delivery.js";
 import { PublishDispatcher } from "./publisher/dispatcher.js";
 import { NostrPublisher } from "./publisher/nostr.js";
 import { DmdataReceiver } from "./receiver/dmdata.js";
+import { SqliteFeedCursorStore } from "./receiver/feed-cursor.js";
 import { JmaFeedReceiver, type JmaTelegram } from "./receiver/jma-feed.js";
 import {
   DEFAULT_ROUTING_CONFIG_PATH,
@@ -141,8 +142,11 @@ const main = async () => {
   };
   consumeJma();
 
+  // 再起動をまたいで処理済みを保つ。これが無いと起動のたびに
+  // フィード全件を既読化し、停止中の電文を取りこぼす。
+  const cursors = new SqliteFeedCursorStore(store.handle());
   const jma = new JmaFeedReceiver(
-    { feeds: jmaFeeds },
+    { feeds: jmaFeeds, cursors },
     {
       onTelegram: (telegram) => jmaQueue.push(telegram),
       onFailure: (message, err) => {
@@ -173,6 +177,7 @@ const main = async () => {
   });
   try {
     await receiver.start();
+    await jma.restore();
     jma.start();
     await discord.notify("✅ EEW System start");
   } catch (error) {
