@@ -45,5 +45,7 @@ export interface ClassifiedAlert {
   // 有効期限。解除電文が無く時限で失効する情報 (竜巻注意情報など) で入る。
   expiresAt: string | null;
   area: AlertArea | null;
+  // 地域の区分。県・市区町村・細分区域など、電文の種別によって粒度が異なる。
+  areaType: string | null;
   detail: Record<string, unknown>;
 }

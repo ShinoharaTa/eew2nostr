@@ -64,6 +64,19 @@ describe("投稿文の生成", () => {
     expect(text).not.toContain("熊本県天草・芦北地方 熊本県天草・芦北地方");
   });
 
+  // 地域の粒度は電文の種別によって異なるため、何の区分かを持たせる
+  it.each([
+    ["VXSE53", "震央地名"],
+    ["VPWW53", "一次細分区域"],
+    ["VPHW50", "一次細分区域"],
+    ["VXWW50", "市町村等"],
+    ["VTSE41", "津波予報区"],
+    ["VFVO50", "火山"],
+    ["VXKO70", "河川"],
+  ])("%s の地域区分は %s", (type, areaType) => {
+    expect(alertsOf(type)[0].areaType).toBe(areaType);
+  });
+
   it("長周期地震動階級は本文に添える", () => {
     const [text] = posts("VXSE62");
     expect(text).toContain("最大震度 7");
@@ -105,32 +118,18 @@ describe("投稿文の生成", () => {
     expect(text).not.toContain("上川地方留萌地方");
   });
 
-  // 電文には府県しか構造化されておらず、地点と雨量は定型の見出し文にしかない
+  // 電文に構造化されているのは府県のみ。地点と雨量は見出し文にしかないため、
+  // 定型文を解析せず気象庁の発表文をそのまま引く。
   describe("記録的短時間大雨情報", () => {
-    it("見出し文から地点と雨量を取り出して構造化する", () => {
+    it("構造化された府県と発表文を出す", () => {
       const [text] = posts("VPOA50");
-      expect(text).toContain("長野県 伊那");
-      expect(text).toContain("19時10分 1時間あたり 約100mm");
-      // 気象庁の定型文をそのまま載せない
-      expect(text).not.toContain("記録的短時間大雨。");
-      expect(text).not.toContain("猛烈な雨が降っており");
+      expect(text).toContain("長野県");
+      expect(text).toContain("記録的短時間大雨");
+      expect(text).toContain("１時間に約１００ミリ");
     });
 
-    it("解析できない見出しは原文に戻す", () => {
-      const [alert] = alertsOf("VPOA50");
-      const text = formatAlerts([
-        {
-          ...alert,
-          detail: {
-            ...alert.detail,
-            place: null,
-            observedAt: null,
-            millimeters: null,
-            text: "想定外の形式の見出しです",
-          },
-        },
-      ]);
-      expect(text).toContain("想定外の形式の見出しです");
+    it("地域の区分は府県予報区になる", () => {
+      expect(alertsOf("VPOA50")[0].areaType).toBe("府県予報区");
     });
   });
 
