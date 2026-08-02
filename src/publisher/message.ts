@@ -1,4 +1,5 @@
 import { format, parseISO } from "date-fns";
+import { withPrefecture } from "../classify/prefecture.js";
 import type { ClassifiedAlert, HazardType } from "../classify/types.js";
 
 // Bluesky は 300 グラフェムが上限。地域を並べると容易に超えるため、
@@ -173,25 +174,21 @@ export const formatAlerts = (
   if (alerts.length === 0) return "";
   const first = alerts[0];
   const name = alertName(first);
+  // 震度速報は Earthquake 要素を持たず発生時刻が無いため、発表時刻で代える
   const head =
     first.hazard === "earthquake"
-      ? `${heading(first, name)}${hhmm(detailText(first, "originTime"))}`
+      ? `${heading(first, name)}${hhmm(detailText(first, "originTime") ?? first.reportedAt)}`
       : heading(first, name);
   const lines = body(first);
   const hashtag = HASHTAG[first.hazard] ?? "";
 
-  // 一次細分区域は「北西部」のように単独では通じないため府県名を補う
-  const prefecture = detailText(first, "prefecture");
+  // 全国に配信するため、地域名には都道府県名を含める。
+  // 気象庁の地域コードは先頭2桁が都道府県コードになっている。
   const names = [
     ...new Set(
       alerts
-        .map((a) => a.area?.name ?? "")
-        .filter(Boolean)
-        .map((name) =>
-          prefecture && !name.startsWith(prefecture)
-            ? `${prefecture}${name}`
-            : name,
-        ),
+        .map((a) => (a.area ? withPrefecture(a.area.name, a.area.code) : ""))
+        .filter(Boolean),
     ),
   ];
   // 見出し・本文・注記・タグを除いた残りを地域名に割り当てる

@@ -77,6 +77,12 @@ describe("投稿文の生成", () => {
     expect(alertsOf(type)[0].areaType).toBe(areaType);
   });
 
+  // 震度速報は Earthquake 要素を持たず発生時刻が無い
+  it("発生時刻が無い震度速報は発表時刻を出す", () => {
+    const [text] = posts("VXSE51");
+    expect(text).toMatch(/^【地震情報】\d{2}:\d{2}/);
+  });
+
   it("長周期地震動階級は本文に添える", () => {
     const [text] = posts("VXSE62");
     expect(text).toContain("最大震度 7");
@@ -104,18 +110,28 @@ describe("投稿文の生成", () => {
     expect(text).toMatch(/\d{2}:\d{2}まで有効/);
   });
 
-  // 一次細分区域名は単独では通じないものがあるため府県名を補う
-  it("府県予報区が1つなら地域名に府県名を補う", () => {
+  // 全国に配信するため、地域名には都道府県名を含める
+  it("一次細分区域に都道府県名を補う", () => {
     const [text] = posts("VPHW50");
     expect(text).toContain("千葉県北西部");
     expect(text).toContain("千葉県南部");
   });
 
-  // 北海道のように1通に複数の府県予報区が含まれる場合は補完しない
-  it("府県予報区が複数ある電文では府県名を補わない", () => {
+  // 北海道は府県予報区が上川地方・留萌地方などに分かれる
+  it("1通に複数の地域が含まれてもそれぞれに補う", () => {
     const text = posts("VPWW53").find((t) => t.includes("濃霧注意報"));
-    expect(text).toContain("上川地方、留萌地方");
-    expect(text).not.toContain("上川地方留萌地方");
+    expect(text).toContain("北海道上川地方、北海道留萌地方");
+  });
+
+  it("市町村にも都道府県名を補う", () => {
+    const [text] = posts("VXWW50");
+    expect(text).toContain("山形県金山町");
+  });
+
+  it("すでに都道府県名で始まる地域には重ねない", () => {
+    const [text] = posts("VPOA50");
+    expect(text).toContain("長野県");
+    expect(text).not.toContain("長野県長野県");
   });
 
   // 電文に構造化されているのは府県のみ。地点と雨量は見出し文にしかないため、

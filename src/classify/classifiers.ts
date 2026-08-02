@@ -32,25 +32,6 @@ const isNothing = (name: string | null, status: string | null): boolean =>
   status === "なし" ||
   (status?.includes("警報・注意報はなし") ?? false);
 
-// 一次細分区域の名前は「北西部」「南部」のように単独では通じないものがある。
-// 府県予報区等のブロックから府県名を取り、投稿文で補えるようにする。
-//
-// ただし北海道のように1通の電文が複数の府県予報区 (上川地方・留萌地方など)
-// を含むことがある。その場合どの区域がどの府県に属するか電文の構造からは
-// 一意に決められないため補完しない。もともと単独で通じる名前でもある。
-const prefectureOf = (report: JmaReport): string | null => {
-  const names = new Set<string>();
-  for (const warning of asArray(report.body.Warning)) {
-    const type = text(warning["@type"]) ?? "";
-    if (!type.includes("府県") && !type.includes("発表細分")) continue;
-    for (const item of asArray(warning.Item)) {
-      const target = area(item.Area);
-      if (target) names.add(target.name);
-    }
-  }
-  return names.size === 1 ? [...names][0] : null;
-};
-
 const stateFromStatus = (status: string | null): AlertState =>
   status?.includes("解除") ? "resolved" : "active";
 
@@ -64,7 +45,6 @@ export const classifyWeather = (
   const warnings = asArray(report.body.Warning).filter(
     (w) => text(w["@type"])?.includes("一次細分区域") ?? false,
   );
-  const prefecture = prefectureOf(report);
   const alerts: ClassifiedAlert[] = [];
   for (const warning of warnings) {
     for (const item of asArray(warning.Item)) {
@@ -90,7 +70,6 @@ export const classifyWeather = (
             kind: name,
             kindCode: code,
             status,
-            prefecture,
             attention: text(node(kind.Attention)?.Note),
           },
         });
@@ -356,7 +335,6 @@ export const classifyTornado = (
   const warnings = asArray(report.body.Warning).filter(
     (w) => text(w["@type"])?.includes("一次細分区域") ?? false,
   );
-  const prefecture = prefectureOf(report);
   const alerts: ClassifiedAlert[] = [];
   for (const warning of warnings) {
     for (const item of asArray(warning.Item)) {
@@ -377,7 +355,7 @@ export const classifyTornado = (
         reportedAt: ctx.reportedAt,
         expiresAt: ctx.expiresAt,
         area: target,
-        detail: { kind: name, status, prefecture, text: ctx.headline },
+        detail: { kind: name, status, text: ctx.headline },
       });
     }
   }
