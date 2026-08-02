@@ -7,6 +7,7 @@ import type { StatusStore } from "./status-store.js";
 interface Row {
   key: string;
   category: string;
+  kind: string | null;
   severity: string | null;
   status: string;
   published_at: string;
@@ -23,7 +24,8 @@ interface Row {
 const toRecord = (row: Row): AlertStatusRecord => ({
   key: row.key,
   category: row.category as AlertCategory,
-  // 旧スキーマの行には severity が無いため既定値で補う
+  // 旧スキーマの行には kind / severity が無いため既定値で補う
+  kind: (row.kind ?? "forecast") as AlertStatusRecord["kind"],
   severity: (row.severity ?? "info") as AlertStatusRecord["severity"],
   status: row.status as AlertStatusRecord["status"],
   publishedAt: row.published_at,
@@ -62,6 +64,7 @@ export class SqliteStatusStore implements StatusStore {
       CREATE TABLE IF NOT EXISTS alert_status (
         key          TEXT PRIMARY KEY,
         category     TEXT NOT NULL,
+        kind         TEXT,
         severity     TEXT,
         status       TEXT NOT NULL,
         published_at TEXT NOT NULL,
@@ -93,6 +96,7 @@ export class SqliteStatusStore implements StatusStore {
       ).map((column) => column.name),
     );
     for (const [name, type] of [
+      ["kind", "TEXT"],
       ["severity", "TEXT"],
       ["expires_at", "TEXT"],
       ["area", "TEXT"],
@@ -114,11 +118,12 @@ export class SqliteStatusStore implements StatusStore {
     this.database()
       .prepare(`
         INSERT INTO alert_status (
-          key, category, severity, status, published_at, updated_at,
+          key, category, kind, severity, status, published_at, updated_at,
           expires_at, serial, headline, area, detail, posts, revision, mirrored_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
         ON CONFLICT(key) DO UPDATE SET
           category     = excluded.category,
+          kind         = excluded.kind,
           severity     = excluded.severity,
           status       = excluded.status,
           published_at = excluded.published_at,
@@ -135,6 +140,7 @@ export class SqliteStatusStore implements StatusStore {
       .run(
         record.key,
         record.category,
+        record.kind,
         record.severity,
         record.status,
         record.publishedAt,

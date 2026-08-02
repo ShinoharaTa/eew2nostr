@@ -1,0 +1,64 @@
+{
+  "accounts": {
+    "eew": {
+      "label": "緊急地震速報",
+      "nostr": { "hexEnv": "HEX_EEW" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER_EEW",
+        "passwordEnv": "BSKY_PASSWORD_EEW"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY_EEW",
+        "channelEnv": "CONCRNT_CHANNEL_EEW"
+      }
+    },
+    "emergency": {
+      "label": "津波・噴火などの速報",
+      "nostr": { "hexEnv": "HEX_EMERGENCY" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER_EMERGENCY",
+        "passwordEnv": "BSKY_PASSWORD_EMERGENCY"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY_EMERGENCY",
+        "channelEnv": "CONCRNT_CHANNEL_EMERGENCY"
+      }
+    },
+    "warning": {
+      "label": "警報",
+      "nostr": { "hexEnv": "HEX_WARNING" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER_WARNING",
+        "passwordEnv": "BSKY_PASSWORD_WARNING"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY_WARNING",
+        "channelEnv": "CONCRNT_CHANNEL_WARNING"
+      }
+    },
+    "observed": {
+      "label": "観測情報",
+      "nostr": { "hexEnv": "HEX_OBSERVED" },
+      "bluesky": {
+        "identifierEnv": "BSKY_IDENTIFIER_OBSERVED",
+        "passwordEnv": "BSKY_PASSWORD_OBSERVED"
+      },
+      "concrnt": {
+        "subkeyEnv": "CONCRNT_SUBKEY_OBSERVED",
+        "channelEnv": "CONCRNT_CHANNEL_OBSERVED"
+      }
+    }
+  },
+  "routes": [
+    { "to": "eew", "when": { "hazard": ["eew"] } },
+
+    { "to": "emergency", "when": { "minSeverity": "emergency" } },
+
+    {
+      "to": "warning",
+      "when": { "kind": ["forecast"], "minSeverity": "warning" }
+    },
+
+    { "to": "observed", "when": { "kind": ["observed"] } }
+  ]
+}

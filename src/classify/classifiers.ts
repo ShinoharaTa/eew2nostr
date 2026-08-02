@@ -5,7 +5,12 @@ import {
   severityFromTsunamiKind,
   severityFromVolcanoLevel,
 } from "./severity.js";
-import type { AlertState, ClassifiedAlert, Severity } from "./types.js";
+import type {
+  AlertKind,
+  AlertState,
+  ClassifiedAlert,
+  Severity,
+} from "./types.js";
 import { area, asArray, node, text } from "./xml-value.js";
 
 interface Context {
@@ -15,6 +20,8 @@ interface Context {
   title: string;
   // 有効期限 (ValidDateTime)。無い電文では null。
   expiresAt: string | null;
+  // 情報の性質。電文種別ごとに決まる。
+  kind: AlertKind;
 }
 
 // その地域に警報が無いことを示す電文。記録も配信もしない。
@@ -50,6 +57,7 @@ export const classifyWeather = (
         const code = text(kind.Code) ?? name ?? "";
         alerts.push({
           key: `weather:${target.code}:${code}`,
+          kind: ctx.kind,
           hazard: "weather",
           severity: severityFromName(name ?? ""),
           state: stateFromStatus(status),
@@ -89,6 +97,7 @@ export const classifyEarthquake = (
   return [
     {
       key: `earthquake:${eventId}`,
+      kind: ctx.kind,
       hazard: "earthquake",
       severity: severityFromIntensity(maxInt),
       state: "active",
@@ -129,6 +138,7 @@ export const classifyTsunami = (
     if (!target || !kind) continue;
     alerts.push({
       key: `tsunami:${target.code}`,
+      kind: ctx.kind,
       hazard: "tsunami",
       severity: severityFromTsunamiKind(kind),
       state: kind.includes("解除") ? "resolved" : "active",
@@ -165,6 +175,7 @@ export const classifyVolcano = (
       const condition = text(kind?.Condition);
       alerts.push({
         key: `volcano:${target.code}`,
+        kind: ctx.kind,
         hazard: "volcano",
         severity: severityFromVolcanoLevel(level),
         state: level === 1 || name.includes("解除") ? "resolved" : "active",
@@ -204,6 +215,7 @@ export const classifySediment = (
       const level = levelFromName(ctx.title);
       alerts.push({
         key: `sediment:${target.code}`,
+        kind: ctx.kind,
         hazard: "sediment",
         // 土砂災害警戒情報は発表そのものが警戒レベル4相当
         severity:
@@ -252,6 +264,7 @@ export const classifyFlood = (
         text(kind?.Name) ?? text(node(kind?.Property)?.Type) ?? "洪水予報";
       alerts.push({
         key: `flood:${target.code}`,
+        kind: ctx.kind,
         hazard: "flood",
         severity: resolved ? "info" : severityFromFlood(ctx.headline),
         state: resolved ? "resolved" : "active",
@@ -298,6 +311,7 @@ export const classifyTornado = (
       if (!target) continue;
       alerts.push({
         key: `tornado:${target.code}`,
+        kind: ctx.kind,
         hazard: "tornado",
         severity: "advisory",
         state: "active",
@@ -326,6 +340,7 @@ export const classifyHeavyRain = (
       alerts.push({
         // 同じ地域でも発表ごとに別の事象なので eventId でキーを分ける
         key: `heavy-rain:${report.head.eventId ?? target.code}`,
+        kind: ctx.kind,
         hazard: "heavy-rain",
         severity: "warning",
         state: "active",

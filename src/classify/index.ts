@@ -9,7 +9,7 @@ import {
   classifyVolcano,
   classifyWeather,
 } from "./classifiers.js";
-import type { ClassifiedAlert } from "./types.js";
+import type { AlertKind, ClassifiedAlert } from "./types.js";
 
 export * from "./types.js";
 
@@ -20,45 +20,62 @@ type ClassifyFn = (
     headline: string;
     title: string;
     expiresAt: string | null;
+    kind: AlertKind;
   },
 ) => ClassifiedAlert[];
+
+// 電文種別ごとに、分類器と情報の性質を対応させる。
+// 予測と実測は同じ災害種別の中に混在するため、種別コード単位で決める。
+interface Handler {
+  classify: ClassifyFn;
+  kind: AlertKind;
+}
+
+const forecast = (fn: ClassifyFn): Handler => ({
+  classify: fn,
+  kind: "forecast",
+});
+const observed = (fn: ClassifyFn): Handler => ({
+  classify: fn,
+  kind: "observed",
+});
 
 // 扱う電文種別と分類器の対応。ここに無い種別は配信・記録の対象外。
 //
 // 気象警報・注意報は VPWW53 のみ採用する。VPWW54 は VPWW53 と完全に
 // 同一内容の二重配信であり、R06系 (VPWW55/56/58/59/61) も並行配信のため、
 // すべて処理すると同じ警報を重複して記録してしまう。
-const CLASSIFIERS: Record<string, ClassifyFn> = {
-  VPWW53: classifyWeather,
+const CLASSIFIERS: Record<string, Handler> = {
+  VPWW53: forecast(classifyWeather),
 
-  VXSE51: classifyEarthquake, // 震度速報
-  VXSE52: classifyEarthquake, // 震源に関する情報
-  VXSE53: classifyEarthquake, // 震源・震度に関する情報
-  VXSE61: classifyEarthquake, // 顕著な地震の震源要素更新
+  VXSE51: observed(classifyEarthquake), // 震度速報
+  VXSE52: observed(classifyEarthquake), // 震源に関する情報
+  VXSE53: observed(classifyEarthquake), // 震源・震度に関する情報
+  VXSE61: observed(classifyEarthquake), // 顕著な地震の震源要素更新
   // 長周期地震動に関する観測情報。震度 (MaxInt) と
   // 長周期地震動階級 (MaxLgInt) を両方持つ。
-  VXSE62: classifyEarthquake,
+  VXSE62: observed(classifyEarthquake),
 
-  VTSE41: classifyTsunami, // 津波警報・注意報・予報
-  VTSE51: classifyTsunami, // 津波情報
+  VTSE41: forecast(classifyTsunami), // 津波警報・注意報・予報
+  VTSE51: observed(classifyTsunami), // 津波情報
 
-  VFVO50: classifyVolcano, // 噴火警報・予報
+  VFVO50: forecast(classifyVolcano), // 噴火警報・予報
   // VFVO52 (噴火に関する火山観測報) は対象外。
   // 対象火山ブロックを持たず、桜島の日常的な噴火が大半を占めるため。
   // 噴火警戒レベルの変化は VFVO50 で記録される。
 
-  VXWW50: classifySediment, // 土砂災害警戒情報
+  VXWW50: forecast(classifySediment), // 土砂災害警戒情報
 
-  VPHW50: classifyTornado, // 竜巻注意情報
-  VPHW51: classifyTornado, // 竜巻注意情報 (目撃情報付き)
+  VPHW50: forecast(classifyTornado), // 竜巻注意情報
+  VPHW51: forecast(classifyTornado), // 竜巻注意情報 (目撃情報付き)
 
-  VPOA50: classifyHeavyRain, // 記録的短時間大雨情報
+  VPOA50: observed(classifyHeavyRain), // 記録的短時間大雨情報
 
-  VXKO50: classifyFlood,
-  VXKO53: classifyFlood,
-  VXKO54: classifyFlood,
-  VXKO57: classifyFlood,
-  VXKO70: classifyFlood,
+  VXKO50: forecast(classifyFlood),
+  VXKO53: forecast(classifyFlood),
+  VXKO54: forecast(classifyFlood),
+  VXKO57: forecast(classifyFlood),
+  VXKO70: forecast(classifyFlood),
 };
 
 export const isSupported = (type: string | null): boolean =>
@@ -73,12 +90,13 @@ export const classify = (
   report: JmaReport,
 ): ClassifiedAlert[] => {
   if (type === null) return [];
-  const classifier = CLASSIFIERS[type];
-  if (!classifier) return [];
-  return classifier(report, {
+  const handler = CLASSIFIERS[type];
+  if (!handler) return [];
+  return handler.classify(report, {
     reportedAt: report.head.reportDateTime,
     headline: report.head.headline ?? report.head.title,
     title: report.head.title,
     expiresAt: report.head.validDateTime,
+    kind: handler.kind,
   });
 };

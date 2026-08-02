@@ -1,5 +1,5 @@
 import type { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post";
-import type { HazardType, Severity } from "../classify/types.js";
+import type { AlertKind, HazardType, Severity } from "../classify/types.js";
 import type { EEWReport } from "./parser.js";
 
 // 防災情報の種別。分類層と同じ語彙を使う。
@@ -23,6 +23,8 @@ export interface AlertPosts {
 export interface AlertStatusRecord {
   key: string;
   category: AlertCategory;
+  // 情報の性質 (予測 / 実測 / 行動指示)。配信先の振り分けに使う。
+  kind: AlertKind;
   // 警戒レベル相当で正規化した緊急度。配信先の振り分けに使う。
   severity: Severity;
   status: AlertStatus;
@@ -70,6 +72,7 @@ const eewDetail = (report: EEWReport): Record<string, unknown> => ({
 export const initialEEWRecord = (report: EEWReport): AlertStatusRecord => ({
   key: eewStatusKey(report.id),
   category: "eew",
+  kind: "forecast",
   severity: eewSeverity(report),
   status: eewStatus(report),
   publishedAt: report.reportTime.toISOString(),

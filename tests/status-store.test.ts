@@ -16,6 +16,7 @@ const sampleRecord = (
 ): AlertStatusRecord => ({
   key: "eew:20240109012003",
   category: "eew",
+  kind: "forecast",
   severity: "info",
   status: "active",
   publishedAt: "2024-01-08T16:20:44.000Z",
