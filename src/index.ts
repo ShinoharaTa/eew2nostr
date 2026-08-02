@@ -5,6 +5,12 @@ import { logger } from "./logger.js";
 import { DiscordNotifier } from "./notifier/discord.js";
 import { BskyPublisher } from "./publisher/bsky.js";
 import { ConcrntPublisher } from "./publisher/concrnt.js";
+import {
+  buildAccounts,
+  disposeAccounts,
+  initAccounts,
+} from "./publisher/account.js";
+import { Delivery } from "./publisher/delivery.js";
 import { PublishDispatcher } from "./publisher/dispatcher.js";
 import { NostrPublisher } from "./publisher/nostr.js";
 import { DmdataReceiver } from "./receiver/dmdata.js";
@@ -109,7 +115,16 @@ const main = async () => {
     });
   }
 
-  const recorder = new AlertRecorder(status, router);
+  // 配信先ごとのクライアント。鍵が未設定の経路は投稿せず
+  // コンソールに出すテストモードとして動く。
+  const routingConfig = loadRoutingConfig(
+    ROUTING_CONFIG_PATH ?? DEFAULT_ROUTING_CONFIG_PATH,
+  );
+  const accounts = buildAccounts(routingConfig, relays);
+  await initAccounts(accounts);
+  const delivery = new Delivery(accounts, router, status, discord);
+
+  const recorder = new AlertRecorder(status, router, delivery);
   const jmaQueue = new AsyncQueue<JmaTelegram>();
   const consumeJma = async () => {
     while (true) {
@@ -143,6 +158,7 @@ const main = async () => {
   // リレー接続と DB を明示的に閉じてから終了する
   const shutdown = async (code: number) => {
     jma.stop();
+    disposeAccounts(accounts);
     nostr.dispose();
     await store.close();
     process.exit(code);
