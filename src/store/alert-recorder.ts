@@ -20,6 +20,7 @@ const initialRecord = (alert: ClassifiedAlert): AlertStatusRecord => ({
   serial: null,
   headline: alert.headline,
   area: alert.area,
+  areaType: alert.areaType,
   detail: alert.detail,
   posts: {},
   revision: 0,
@@ -37,6 +38,7 @@ const applyAlert = (
   record.expiresAt = alert.expiresAt;
   record.headline = alert.headline;
   record.area = alert.area;
+  record.areaType = alert.areaType;
   record.detail = alert.detail;
 };
 

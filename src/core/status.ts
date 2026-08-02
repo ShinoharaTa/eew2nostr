@@ -36,6 +36,8 @@ export interface AlertStatusRecord {
   headline: string;
   // 対象地域。地震は震源、気象警報は一次細分区域。
   area: { name: string; code: string } | null;
+  // 地域の区分。県・市区町村・細分区域など、種別によって粒度が異なる。
+  areaType: string | null;
   detail: Record<string, unknown>;
   posts: AlertPosts;
   // 保存のたびに増える版番号。ミラー完了を記録する際の突き合わせに使う。
@@ -81,6 +83,7 @@ export const initialEEWRecord = (report: EEWReport): AlertStatusRecord => ({
   serial: report.serial,
   headline: eewHeadline(report),
   area: { name: report.place, code: "" },
+  areaType: "震央地名",
   detail: eewDetail(report),
   posts: {},
   revision: 0,
@@ -93,6 +96,7 @@ export const applyEEWReport = (
 ): void => {
   record.severity = eewSeverity(report);
   record.area = { name: report.place, code: "" };
+  record.areaType = "震央地名";
   record.status = eewStatus(report);
   record.updatedAt = report.reportTime.toISOString();
   record.serial = report.serial;

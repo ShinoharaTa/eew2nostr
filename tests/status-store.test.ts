@@ -25,6 +25,7 @@ const sampleRecord = (
   serial: "1",
   headline: "石川県能登地方 震度3（M3.5）",
   area: { name: "石川県能登地方", code: "390" },
+  areaType: "震央地名",
   detail: { place: "石川県能登地方", magnitude: "3.5" },
   posts: {},
   revision: 1,
