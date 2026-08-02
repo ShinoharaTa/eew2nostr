@@ -348,6 +348,48 @@ export const classifyTornado = (
   return alerts;
 };
 
+// 全角の数字と小数点を半角に直す
+const toHalfWidth = (value: string): string =>
+  value
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/．/g, ".");
+
+// 記録的短時間大雨情報の見出しから地点と雨量を取り出す。
+// 電文には府県しか構造化されておらず、地点・雨量は定型の見出し文にしかない。
+//
+//   １９時１０分、長野県伊那で記録的短時間大雨。
+//   伊那付近で１時間に約１００ミリ。
+//
+// 解析できない場合は null を返し、呼び出し側で原文に戻せるようにする。
+export const parseHeavyRainHeadline = (
+  headline: string,
+  prefecture: string | null,
+): {
+  place: string | null;
+  observedAt: string | null;
+  millimeters: number | null;
+  estimated: boolean;
+} => {
+  const text = toHalfWidth(headline);
+  // 「０時」のように分を伴わない表記もある
+  const time = text.match(/(\d{1,2})時(?:(\d{1,2})分)?/);
+  const spot = text.match(/[、,]\s*(.+?)で記録的短時間大雨/);
+  const rain = text.match(/1時間に(約)?\s*(\d+(?:\.\d+)?)ミリ/);
+  let place = spot ? spot[1] : null;
+  // 「長野県伊那」のように府県名が前置される。重複するので落とす。
+  if (place && prefecture && place.startsWith(prefecture)) {
+    place = place.slice(prefecture.length) || null;
+  }
+  return {
+    place,
+    observedAt: time
+      ? `${Number(time[1])}時${time[2] ? `${Number(time[2])}分` : ""}`
+      : null,
+    millimeters: rain ? Number(rain[2]) : null,
+    estimated: rain ? rain[1] !== undefined : false,
+  };
+};
+
 // 記録的短時間大雨情報 (VPOA50)。数年に一度の大雨で災害発生の危険が高い。
 // 解除の概念が無い単発情報のため state は active とする。
 export const classifyHeavyRain = (
@@ -359,6 +401,7 @@ export const classifyHeavyRain = (
     for (const item of asArray(warning.Item)) {
       const target = area(item.Area);
       if (!target) continue;
+      const parsed = parseHeavyRainHeadline(ctx.headline, target.name);
       alerts.push({
         // 同じ地域でも発表ごとに別の事象なので eventId でキーを分ける
         key: `heavy-rain:${report.head.eventId ?? target.code}`,
@@ -370,7 +413,14 @@ export const classifyHeavyRain = (
         reportedAt: ctx.reportedAt,
         expiresAt: ctx.expiresAt,
         area: target,
-        detail: { kind: text(node(item.Kind)?.Name), text: ctx.headline },
+        detail: {
+          kind: text(node(item.Kind)?.Name),
+          place: parsed.place,
+          observedAt: parsed.observedAt,
+          millimeters: parsed.millimeters,
+          estimated: parsed.estimated,
+          text: ctx.headline,
+        },
       });
     }
   }

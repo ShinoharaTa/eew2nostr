@@ -86,6 +86,35 @@ describe("投稿文の生成", () => {
     expect(text).not.toContain("上川地方留萌地方");
   });
 
+  // 電文には府県しか構造化されておらず、地点と雨量は定型の見出し文にしかない
+  describe("記録的短時間大雨情報", () => {
+    it("見出し文から地点と雨量を取り出して構造化する", () => {
+      const [text] = posts("VPOA50");
+      expect(text).toContain("長野県 伊那");
+      expect(text).toContain("19時10分 1時間あたり 約100mm");
+      // 気象庁の定型文をそのまま載せない
+      expect(text).not.toContain("記録的短時間大雨。");
+      expect(text).not.toContain("猛烈な雨が降っており");
+    });
+
+    it("解析できない見出しは原文に戻す", () => {
+      const [alert] = alertsOf("VPOA50");
+      const text = formatAlerts([
+        {
+          ...alert,
+          detail: {
+            ...alert.detail,
+            place: null,
+            observedAt: null,
+            millimeters: null,
+            text: "想定外の形式の見出しです",
+          },
+        },
+      ]);
+      expect(text).toContain("想定外の形式の見出しです");
+    });
+  });
+
   describe("投稿単位のまとめ", () => {
     it("同じ種別・状態の地域は1件の投稿にまとまる", () => {
       const groups = groupForPosting(alertsOf("VPWW53"));

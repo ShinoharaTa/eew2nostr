@@ -92,8 +92,17 @@ const body = (alert: ClassifiedAlert): string[] => {
       break;
     }
     case "heavy-rain": {
-      const text = detailText(alert, "text");
-      if (text) lines.push(text.replace(/\n+/g, " ").trim());
+      // 電文には府県しか構造化されておらず、地点と雨量は見出し文から
+      // 取り出している。解析できなかった場合は原文をそのまま出す。
+      const mm = alert.detail.millimeters;
+      const observedAt = detailText(alert, "observedAt");
+      if (typeof mm === "number") {
+        const amount = `1時間あたり ${alert.detail.estimated ? "約" : ""}${mm}mm`;
+        lines.push(observedAt ? `${observedAt} ${amount}` : amount);
+      } else {
+        const text = detailText(alert, "text");
+        if (text) lines.push(text.replace(/\n+/g, " ").trim());
+      }
       break;
     }
     case "tornado": {
@@ -143,10 +152,12 @@ export const formatAlerts = (
 
   // 一次細分区域は「北西部」のように単独では通じないため府県名を補う
   const prefecture = detailText(first, "prefecture");
+  const spot = detailText(first, "place");
   const names = [
     ...new Set(
       alerts
         .map((a) => a.area?.name ?? "")
+        .map((name) => (spot && name ? `${name} ${spot}` : name))
         .filter(Boolean)
         .map((name) =>
           prefecture && !name.startsWith(prefecture)
