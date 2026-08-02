@@ -16,6 +16,7 @@ interface Row {
   serial: string | null;
   headline: string;
   area: string | null;
+  area_type: string | null;
   detail: string;
   posts: string;
   revision: number;
@@ -34,6 +35,7 @@ const toRecord = (row: Row): AlertStatusRecord => ({
   serial: row.serial,
   headline: row.headline,
   area: row.area ? JSON.parse(row.area) : null,
+  areaType: row.area_type ?? null,
   detail: JSON.parse(row.detail),
   posts: JSON.parse(row.posts),
   revision: row.revision,
@@ -73,6 +75,7 @@ export class SqliteStatusStore implements StatusStore {
         serial       TEXT,
         headline     TEXT NOT NULL,
         area         TEXT,
+        area_type    TEXT,
         detail       TEXT NOT NULL,
         posts        TEXT NOT NULL,
         revision     INTEGER NOT NULL,
@@ -100,6 +103,7 @@ export class SqliteStatusStore implements StatusStore {
       ["severity", "TEXT"],
       ["expires_at", "TEXT"],
       ["area", "TEXT"],
+      ["area_type", "TEXT"],
     ]) {
       if (!existing.has(name)) {
         db.exec(`ALTER TABLE alert_status ADD COLUMN ${name} ${type}`);
@@ -119,8 +123,8 @@ export class SqliteStatusStore implements StatusStore {
       .prepare(`
         INSERT INTO alert_status (
           key, category, kind, severity, status, published_at, updated_at,
-          expires_at, serial, headline, area, detail, posts, revision, mirrored_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+          expires_at, serial, headline, area, area_type, detail, posts, revision, mirrored_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
         ON CONFLICT(key) DO UPDATE SET
           category     = excluded.category,
           kind         = excluded.kind,
@@ -132,6 +136,7 @@ export class SqliteStatusStore implements StatusStore {
           serial       = excluded.serial,
           headline     = excluded.headline,
           area         = excluded.area,
+          area_type    = excluded.area_type,
           detail       = excluded.detail,
           posts        = excluded.posts,
           revision     = excluded.revision,
@@ -149,6 +154,7 @@ export class SqliteStatusStore implements StatusStore {
         record.serial,
         record.headline,
         record.area ? JSON.stringify(record.area) : null,
+        record.areaType,
         JSON.stringify(record.detail),
         JSON.stringify(record.posts),
         record.revision,

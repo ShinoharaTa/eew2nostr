@@ -24,6 +24,9 @@ export class BskyPublisher {
   ): Promise<{ cid: string; uri: string }> {
     return await this.agent.post({
       text: content,
+      // 言語を明示する。宣言が無いとクライアント側の推定に委ねられ、
+      // 漢字が主体の防災情報は日本語と判定されないことがある。
+      langs: ["ja"],
       ...(reply ? { reply } : {}),
     });
   }

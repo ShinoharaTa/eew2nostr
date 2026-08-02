@@ -10,6 +10,12 @@ import { logger } from "../logger.js";
 useWebSocketImplementation(WebSocket);
 
 // SimplePool が満たすインターフェース(テスト時は差し替え可能)
+// NIP-32 の自己ラベル。kind 1 に言語を宣言する。
+// 宣言が無いとクライアント側の推定に委ねられ、漢字が主体の
+// 防災情報は日本語と判定されないことがある。
+const LANGUAGE_NAMESPACE = "ISO-639-1";
+const LANGUAGE = "ja";
+
 export interface RelayPoolPort {
   publish(relays: string[], event: VerifiedEvent): Promise<string>[];
   close(relays: string[]): void;
@@ -40,7 +46,10 @@ export class NostrPublisher {
     const ev: EventTemplate = {
       kind: 1,
       content: params.content,
-      tags: [],
+      tags: [
+        ["L", LANGUAGE_NAMESPACE],
+        ["l", LANGUAGE, LANGUAGE_NAMESPACE],
+      ],
       created_at: Math.floor(params.time.getTime() / 1000),
     };
     if (params.reply) {

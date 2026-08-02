@@ -1,4 +1,5 @@
 import type { JmaReport } from "../receiver/jma-xml.js";
+import { intensityRank } from "./intensity.js";
 import {
   levelFromName,
   severityFromName,
@@ -57,6 +58,7 @@ export const classifyWeather = (
         const code = text(kind.Code) ?? name ?? "";
         alerts.push({
           key: `weather:${target.code}:${code}`,
+          areaType: "一次細分区域",
           kind: ctx.kind,
           hazard: "weather",
           severity: severityFromName(name ?? ""),
@@ -78,6 +80,29 @@ export const classifyWeather = (
   return alerts;
 };
 
+// 震度を観測した地域を、震度ごとにまとめる。
+// 電文は 都道府県 > 細分区域 > 市町村 > 観測点 の階層を持つ。
+// 「長野県北部」に相当する細分区域を採る。
+export const observedAreas = (
+  report: JmaReport,
+): { intensity: string; names: string[] }[] => {
+  const observation = asArray(node(report.body.Intensity)?.Observation)[0];
+  const byIntensity = new Map<string, string[]>();
+  for (const pref of asArray(observation?.Pref)) {
+    for (const target of asArray(pref.Area)) {
+      const name = text(target.Name);
+      const intensity = text(target.MaxInt);
+      if (!name || !intensity) continue;
+      const names = byIntensity.get(intensity);
+      if (names) names.push(name);
+      else byIntensity.set(intensity, [name]);
+    }
+  }
+  return [...byIntensity.entries()]
+    .map(([intensity, names]) => ({ intensity, names }))
+    .sort((a, b) => intensityRank(b.intensity) - intensityRank(a.intensity));
+};
+
 // 震度速報・震源震度情報など、実測の地震情報 (VXSE5x)。
 // 同じ地震の続報は同じ eventId になるため、キーもそれに揃える。
 export const classifyEarthquake = (
@@ -97,6 +122,7 @@ export const classifyEarthquake = (
   return [
     {
       key: `earthquake:${eventId}`,
+      areaType: "震央地名",
       kind: ctx.kind,
       hazard: "earthquake",
       severity: severityFromIntensity(maxInt),
@@ -111,6 +137,8 @@ export const classifyEarthquake = (
         magnitude: text(earthquake?.Magnitude),
         originTime: text(earthquake?.OriginTime),
         place: hypocenter?.name ?? null,
+        // どの地域で震度いくつを観測したか。震源だけでは伝わらないため。
+        observed: observedAreas(report),
       },
     },
   ];
@@ -138,6 +166,7 @@ export const classifyTsunami = (
     if (!target || !kind) continue;
     alerts.push({
       key: `tsunami:${target.code}`,
+      areaType: "津波予報区",
       kind: ctx.kind,
       hazard: "tsunami",
       severity: severityFromTsunamiKind(kind),
@@ -175,6 +204,7 @@ export const classifyVolcano = (
       const condition = text(kind?.Condition);
       alerts.push({
         key: `volcano:${target.code}`,
+        areaType: "火山",
         kind: ctx.kind,
         hazard: "volcano",
         severity: severityFromVolcanoLevel(level),
@@ -215,6 +245,7 @@ export const classifySediment = (
       const level = levelFromName(ctx.title);
       alerts.push({
         key: `sediment:${target.code}`,
+        areaType: "市町村等",
         kind: ctx.kind,
         hazard: "sediment",
         // 土砂災害警戒情報は発表そのものが警戒レベル4相当
@@ -264,6 +295,7 @@ export const classifyFlood = (
         text(kind?.Name) ?? text(node(kind?.Property)?.Type) ?? "洪水予報";
       alerts.push({
         key: `flood:${target.code}`,
+        areaType: "河川",
         kind: ctx.kind,
         hazard: "flood",
         severity: resolved ? "info" : severityFromFlood(ctx.headline),
@@ -311,6 +343,7 @@ export const classifyTornado = (
       if (!target) continue;
       alerts.push({
         key: `tornado:${target.code}`,
+        areaType: "一次細分区域",
         kind: ctx.kind,
         hazard: "tornado",
         severity: "advisory",
@@ -340,6 +373,7 @@ export const classifyHeavyRain = (
       alerts.push({
         // 同じ地域でも発表ごとに別の事象なので eventId でキーを分ける
         key: `heavy-rain:${report.head.eventId ?? target.code}`,
+        areaType: "府県予報区",
         kind: ctx.kind,
         hazard: "heavy-rain",
         severity: "warning",
