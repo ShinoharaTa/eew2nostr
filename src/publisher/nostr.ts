@@ -79,6 +79,27 @@ export class NostrPublisher {
     return await this.send(ev, params.relays);
   }
 
+  // NIP-09 の削除イベント。対象の event id を e タグで、
+  // 対象の kind を k タグで示す。リレーは削除を保証しないが、
+  // 対応するリレーとクライアントでは非表示になる。
+  async publishDeletion(
+    eventIds: string[],
+    kinds: number[],
+    reason = "",
+    relays?: string[],
+  ): Promise<string> {
+    const ev: EventTemplate = {
+      kind: 5,
+      content: reason,
+      tags: [
+        ...eventIds.map((id) => ["e", id]),
+        ...[...new Set(kinds)].map((kind) => ["k", String(kind)]),
+      ],
+      created_at: Math.floor(Date.now() / 1000),
+    };
+    return await this.send(ev, relays);
+  }
+
   async publishRaw(content: string, time: Date): Promise<string> {
     const ev: EventTemplate = {
       kind: 7078,
