@@ -229,4 +229,52 @@ describe("PublishDispatcher", () => {
     expect(bsky.publish).not.toHaveBeenCalled();
     expect(concrnt.publish).not.toHaveBeenCalled();
   });
+  // 以前は取消が捨てられており、取り消された速報が残ったままだった
+  describe("取消報", () => {
+    it("投稿済みのスレッドへ取消を伝える", async () => {
+      await dispatcher.handle(telegramWithSerial("1"));
+      await dispatcher.flush();
+      const posted = nostr.publishNote.mock.calls.length;
+
+      await dispatcher.handle({ ...loadSample(), infoType: "取消" });
+      await dispatcher.flush();
+
+      expect(nostr.publishNote.mock.calls.length).toBe(posted + 1);
+      const last = nostr.publishNote.mock.calls.at(-1)?.[0];
+      expect(last?.content).toContain("取り消されました");
+      // 元の投稿への返信になる
+      expect(last?.reply).toEqual({ root: "note-1", parent: null });
+    });
+
+    it("状態を cancelled にする", async () => {
+      await dispatcher.handle(telegramWithSerial("1"));
+      await dispatcher.flush();
+      await dispatcher.handle({ ...loadSample(), infoType: "取消" });
+      await dispatcher.flush();
+
+      expect(status.get("eew:20240109012003")?.status).toBe("cancelled");
+    });
+
+    // 取り消す対象が流れていないのに「取り消されました」だけ出ると混乱する
+    it("投稿していないイベントの取消は投稿しない", async () => {
+      await dispatcher.handle({ ...loadSample(), infoType: "取消" });
+      await dispatcher.flush();
+
+      expect(nostr.publishNote).not.toHaveBeenCalled();
+    });
+
+    it("最終報のあとの取消も投稿する", async () => {
+      // フィクスチャは isLastInfo が true なので最終報として記録される
+      await dispatcher.handle(telegramWithSerial("1"));
+      await dispatcher.flush();
+      expect(status.get("eew:20240109012003")?.status).toBe("finalized");
+
+      await dispatcher.handle({ ...loadSample(), infoType: "取消" });
+      await dispatcher.flush();
+
+      expect(nostr.publishNote.mock.calls.at(-1)?.[0].content).toContain(
+        "取り消されました",
+      );
+    });
+  });
 });

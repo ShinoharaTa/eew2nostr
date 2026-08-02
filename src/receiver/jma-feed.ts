@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance } from "axios";
 import { logger } from "../logger.js";
+import type { FeedCursorStore } from "./feed-cursor.js";
 import {
   type JmaReport,
   parseFeed,
@@ -31,6 +32,13 @@ export interface JmaFeedOptions {
   // 何回連続で失敗したら通知するか
   failureThreshold?: number;
   userAgent?: string;
+  // 再起動をまたいで処理済みを保つ。省略すると毎回既読化から始まる。
+  cursors?: FeedCursorStore;
+  // カーソルがこれより古ければ復元しない。長時間の停止では
+  // フィードが入れ替わっており、古い電文を流しても意味がないため。
+  cursorMaxAgeMs?: number;
+  // 1回の追いつきで配信する上限。再起動直後の大量投稿を防ぐ。
+  maxCatchUp?: number;
 }
 
 interface FeedState {
@@ -54,6 +62,8 @@ export class JmaFeedReceiver {
   private http: AxiosInstance;
   private readonly intervalMs: number;
   private readonly failureThreshold: number;
+  private readonly cursorMaxAgeMs: number;
+  private readonly maxCatchUp: number;
 
   constructor(
     private options: JmaFeedOptions,
@@ -61,6 +71,8 @@ export class JmaFeedReceiver {
   ) {
     this.intervalMs = options.intervalMs ?? 60_000;
     this.failureThreshold = options.failureThreshold ?? 5;
+    this.cursorMaxAgeMs = options.cursorMaxAgeMs ?? 60 * 60_000;
+    this.maxCatchUp = options.maxCatchUp ?? 100;
     this.http = axios.create({
       timeout: 20_000,
       // 気象庁のサーバに対して識別可能な UA を送る
@@ -73,6 +85,33 @@ export class JmaFeedReceiver {
     });
     for (const feed of options.feeds) {
       this.states.set(feed, { seen: new Set(), primed: false });
+    }
+  }
+
+  // 保存しておいたカーソルから再開する。
+  // 呼ばずに start() すると、これまでどおり既読化から始まる。
+  async restore(): Promise<void> {
+    const store = this.options.cursors;
+    if (!store) return;
+    for (const feed of this.options.feeds) {
+      const state = this.states.get(feed);
+      const cursor = await store.load(feed);
+      if (!state || !cursor) continue;
+      const age = Date.now() - new Date(cursor.updatedAt).getTime();
+      if (Number.isNaN(age) || age > this.cursorMaxAgeMs) {
+        logger.info("カーソルが古いため既読化から始めます", {
+          feed,
+          updatedAt: cursor.updatedAt,
+        });
+        continue;
+      }
+      state.seen = new Set(cursor.seen);
+      state.primed = true;
+      logger.info("カーソルから再開します", {
+        feed,
+        seen: cursor.seen.length,
+        updatedAt: cursor.updatedAt,
+      });
     }
   }
 
@@ -168,9 +207,18 @@ export class JmaFeedReceiver {
       return;
     }
 
-    const fresh = entries
-      .filter((entry) => !state.seen.has(entry.id))
-      .reverse();
+    let fresh = entries.filter((entry) => !state.seen.has(entry.id)).reverse();
+    // 停止が長引いた場合に大量投稿が起きないよう、1回の追いつきを制限する
+    if (fresh.length > this.maxCatchUp) {
+      const skipped = fresh.slice(0, fresh.length - this.maxCatchUp);
+      logger.warn("新着が多いため古い分を配信せず既読にします", {
+        feed,
+        skipped: skipped.length,
+        delivered: this.maxCatchUp,
+      });
+      for (const entry of skipped) state.seen.add(entry.id);
+      fresh = fresh.slice(-this.maxCatchUp);
+    }
     const processed = new Set(state.seen);
     for (const entry of fresh) {
       try {
@@ -191,5 +239,6 @@ export class JmaFeedReceiver {
     }
     // フィードから消えた分は取り除き、既読集合を有界に保つ
     state.seen = new Set([...processed].filter((id) => feedIds.has(id)));
+    await this.options.cursors?.save(feed, [...state.seen]);
   }
 }
