@@ -58,9 +58,13 @@ export class PublishDispatcher {
   ) {}
 
   async handle(telegram: JsonSchema): Promise<void> {
-    const report = this.parser.objectMapping(telegram);
-    if (report === "cancel") return;
-    if (!report.id) return;
+    const parsed = this.parser.parse(telegram);
+    if (parsed.type === "ignore") return;
+    if (parsed.type === "cancelled") {
+      await this.handleCancel(parsed.id);
+      return;
+    }
+    const report = parsed.report;
     const key = eewStatusKey(report.id);
     const message = this.parser.generateEEWMessage(report);
 
@@ -118,6 +122,65 @@ export class PublishDispatcher {
         }
       }),
     );
+  }
+
+  // 取消報。既に投稿したスレッドへ取消を伝える。
+  //
+  // 投稿済みのスレッドが無い場合は投稿しない。取り消す対象が
+  // 流れていないのに「取り消されました」だけが出ると混乱を招くため。
+  // 最終報まで出した後の取消でも、取り消された事実のほうが重要なので投稿する。
+  private async handleCancel(id: string): Promise<void> {
+    const key = eewStatusKey(id);
+    const record = this.status.get(key);
+    if (!record) {
+      logger.info("取消報を受信しましたが対象の記録がありません", { key });
+      return;
+    }
+    await this.status.update(key, (target) => {
+      target.status = "cancelled";
+      target.headline = "緊急地震速報 取消";
+    });
+
+    const message = this.parser.generateCancelMessage();
+    if (record.posts.nostr) {
+      this.queues.nostr.push(() =>
+        this.withRetry("nostr(cancel)", key, async () => {
+          const reply = this.status.get(key)?.posts.nostr;
+          const eventId = await this.nostr.publishNote({
+            content: message,
+            time: new Date(),
+            reply: reply ? { ...reply } : undefined,
+          });
+          await this.status.update(key, (target) => {
+            if (target.posts.nostr) target.posts.nostr.parent = eventId;
+          });
+        }),
+      );
+    }
+    if (record.posts.bluesky) {
+      this.queues.bsky.push(() =>
+        this.withRetry("bluesky(cancel)", key, async () => {
+          const reply = this.status.get(key)?.posts.bluesky;
+          const result = await this.bsky.publish(
+            message,
+            reply ? { ...reply } : undefined,
+          );
+          await this.status.update(key, (target) => {
+            if (target.posts.bluesky) target.posts.bluesky.parent = result;
+          });
+        }),
+      );
+    }
+    if (record.posts.concrnt) {
+      this.queues.concrnt.push(() =>
+        this.withRetry("concrnt(cancel)", key, async () => {
+          await this.concrnt.publish(
+            message,
+            this.status.get(key)?.posts.concrnt,
+          );
+        }),
+      );
+    }
   }
 
   // 積まれた全ジョブの完了を待つ(テスト・シャットダウン用)

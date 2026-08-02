@@ -14,9 +14,9 @@ describe("EEWParser", () => {
   describe("objectMapping", () => {
     it("単報の電文をマッピングできる", () => {
       const telegram: JsonSchema = loadSample("eew_single..json");
-      const report = parser.objectMapping(telegram);
-      expect(report).not.toBe("cancel");
-      const r = report as EEWReport;
+      const parsed = parser.parse(telegram);
+      expect(parsed.type).toBe("report");
+      const r = (parsed as { type: "report"; report: EEWReport }).report;
       expect(r.id).toBe("20240109012003");
       expect(r.serial).toBe("5");
       expect(r.isLast).toBe(true);
@@ -35,29 +35,63 @@ describe("EEWParser", () => {
         ...telegram,
         body: { ...telegram.body, earthquake: undefined },
       };
-      expect(parser.objectMapping(canceled as JsonSchema)).toBe("cancel");
+      expect(parser.parse(canceled as JsonSchema).type).toBe("ignore");
     });
 
     it("eventId が無い電文は cancel を返す", () => {
       const telegram: JsonSchema = loadSample("eew_single..json");
-      expect(parser.objectMapping({ ...telegram, eventId: null })).toBe(
-        "cancel",
-      );
+      expect(parser.parse({ ...telegram, eventId: null }).type).toBe("ignore");
     });
 
     it("連続電文をすべてマッピングできる", () => {
       const telegrams: JsonSchema[] = loadSample("eew_multi.json");
       for (const telegram of telegrams) {
-        const report = parser.objectMapping(telegram);
-        expect(report).not.toBe("cancel");
+        expect(parser.parse(telegram).type).toBe("report");
       }
+    });
+  });
+
+  // 以前は「地震要素が無い」と「取消」を同じ扱いにしており、
+  // 取消が記録にも配信にも反映されていなかった
+  describe("取消報", () => {
+    it("infoType が取消なら cancelled を返す", () => {
+      const telegram: JsonSchema = loadSample("eew_single..json");
+      const parsed = parser.parse({ ...telegram, infoType: "取消" });
+      expect(parsed).toEqual({ type: "cancelled", id: "20240109012003" });
+    });
+
+    it("isCanceled が立っていれば cancelled を返す", () => {
+      const telegram: JsonSchema = loadSample("eew_single..json");
+      const parsed = parser.parse({
+        ...telegram,
+        body: { ...telegram.body, isCanceled: true, earthquake: undefined },
+      } as JsonSchema);
+      expect(parsed.type).toBe("cancelled");
+    });
+
+    it("eventId が無ければ取消と判定しない", () => {
+      const telegram: JsonSchema = loadSample("eew_single..json");
+      const parsed = parser.parse({
+        ...telegram,
+        infoType: "取消",
+        eventId: null,
+      });
+      expect(parsed.type).toBe("ignore");
+    });
+
+    it("取消の文面を組み立てられる", () => {
+      const message = parser.generateCancelMessage();
+      expect(message).toContain("【緊急地震速報 取消】");
+      expect(message).toContain("取り消されました");
     });
   });
 
   describe("generateEEWMessage", () => {
     it("最終報のメッセージを生成できる", () => {
       const telegram: JsonSchema = loadSample("eew_single..json");
-      const report = parser.objectMapping(telegram) as EEWReport;
+      const report = (
+        parser.parse(telegram) as { type: "report"; report: EEWReport }
+      ).report;
       const message = parser.generateEEWMessage(report);
       expect(message).toContain("【緊急地震速報】");
       expect(message).toContain("(最終報)");
@@ -69,7 +103,9 @@ describe("EEWParser", () => {
 
     it("続報は第n報として表示される", () => {
       const telegram: JsonSchema = loadSample("eew_single..json");
-      const report = parser.objectMapping(telegram) as EEWReport;
+      const report = (
+        parser.parse(telegram) as { type: "report"; report: EEWReport }
+      ).report;
       const message = parser.generateEEWMessage({
         ...report,
         isLast: false,
