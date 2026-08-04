@@ -2,14 +2,13 @@ import type { ClassifiedAlert } from "../classify/types.js";
 import { SerialQueue } from "../core/serial-queue.js";
 import type { AlertPosts } from "../core/status.js";
 import { logger } from "../logger.js";
+import type { NotifierPort } from "../notifier/notifier.js";
 import type { Router } from "../routing/router.js";
 import type { StatusManager } from "../store/status-manager.js";
 import { SNS_NAMES, type AccountClients, type SnsName } from "./account.js";
 import { formatAlertPosts, groupForPosting } from "./message.js";
 
-export interface NotifierPort {
-  notify(message: string): Promise<void>;
-}
+export type { NotifierPort } from "../notifier/notifier.js";
 
 // 1回の投稿で使うスレッドの位置。
 interface Thread {
@@ -29,6 +28,8 @@ export class Delivery {
     private router: Router,
     private status: StatusManager,
     private notifier?: NotifierPort,
+    // 実際に投稿できた件数を数える。稼働報告に使う。
+    private onDelivered?: () => void,
   ) {}
 
   // 1通の電文から生まれた防災イベントを配信する。
@@ -98,7 +99,9 @@ export class Delivery {
           err: e,
         });
         await this.notifier?.notify(
-          `🚨 [${account.label} / ${sns}] 投稿に失敗しました。\n${e}`,
+          "error",
+          `[${account.label} / ${sns}] 投稿に失敗しました`,
+          String(e),
         );
       }
     });
@@ -119,6 +122,7 @@ export class Delivery {
     for (const content of posts) {
       const posted = await this.post(account, sns, content, thread);
       if (posted === null) return;
+      this.onDelivered?.();
       // 分割された投稿は必ず前の投稿へ繋ぐ
       thread = { root: thread.root ?? posted.root, parent: posted.parent };
       if (threadKey) {
