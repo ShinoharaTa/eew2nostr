@@ -1,5 +1,6 @@
 import type { ReplyRef } from "@atproto/api/dist/client/types/app/bsky/feed/post";
 import type { EEWParser } from "../core/parser.js";
+import type { NotifierPort } from "../notifier/notifier.js";
 import { SerialQueue } from "../core/serial-queue.js";
 import {
   applyEEWReport,
@@ -20,9 +21,7 @@ export interface NostrPort {
   publishRaw(content: string, time: Date): Promise<string>;
 }
 
-export interface NotifierPort {
-  notify(message: string): Promise<void>;
-}
+export type { NotifierPort } from "../notifier/notifier.js";
 
 export interface BskyPort {
   publish(
@@ -210,7 +209,9 @@ export class PublishDispatcher {
           err: retryError,
         });
         await this.notifier.notify(
-          `🚨 [${sns}] 投稿に失敗しました (${key})。リトライも失敗したためこの報はスキップします。\n${retryError}`,
+          "error",
+          `[${sns}] 投稿に失敗しました`,
+          `${key}\nリトライも失敗したためこの報はスキップします。\n${retryError}`,
         );
       }
     }

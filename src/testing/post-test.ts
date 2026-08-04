@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import { npubEncode } from "nostr-tools/nip19";
 import { getPublicKey } from "nostr-tools/pure";
 import { logger } from "../logger.js";
-import { DiscordNotifier } from "../notifier/discord.js";
+import { Notifier } from "../notifier/notifier.js";
 import { NostrPublisher } from "../publisher/nostr.js";
 import { collectTestNotes } from "./cleanup.js";
 import {
@@ -50,8 +50,12 @@ const cleanup = async (
   } finally {
     publisher.dispose();
   }
-  const discord = new DiscordNotifier(process.env.DISCORD_WEBHOOK_URL ?? "");
-  await discord.notify(`🧹 テスト投稿 ${notes.length}件の削除を要求しました`);
+  const discord = new Notifier(process.env.DISCORD_WEBHOOK_URL ?? "");
+  await discord.notify(
+    "info",
+    "テスト投稿を削除しました",
+    `${notes.length}件の削除を要求しました`,
+  );
 };
 
 const main = async () => {
@@ -89,7 +93,7 @@ const main = async () => {
   });
 
   const publisher = hex ? new NostrPublisher(hex, args.relays) : null;
-  const discord = new DiscordNotifier(process.env.DISCORD_WEBHOOK_URL ?? "");
+  const discord = new Notifier(process.env.DISCORD_WEBHOOK_URL ?? "");
   const results: { type: string; posts: number; eventIds: string[] }[] = [];
 
   try {
@@ -130,7 +134,9 @@ const main = async () => {
   });
   if (!args.dryRun && published > 0) {
     await discord.notify(
-      `🧪 テスト投稿を実施しました\n電文 ${types.length}件 → 投稿 ${published}件\n宛先: ${args.relays.join(", ")}`,
+      "info",
+      "テスト投稿を実施しました",
+      `電文 ${types.length}件 → 投稿 ${published}件\n宛先: ${args.relays.join(", ")}`,
     );
   }
 };

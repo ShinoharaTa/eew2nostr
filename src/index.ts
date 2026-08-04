@@ -2,7 +2,13 @@ import dotenv from "dotenv";
 import { EEWParser } from "./core/parser.js";
 import { AsyncQueue } from "./core/queue.js";
 import { logger } from "./logger.js";
-import { DiscordNotifier } from "./notifier/discord.js";
+import { Notifier } from "./notifier/notifier.js";
+import {
+  type Counters,
+  heartbeatSummary,
+  newCounters,
+  startupSummary,
+} from "./notifier/status-report.js";
 import { BskyPublisher } from "./publisher/bsky.js";
 import { ConcrntPublisher } from "./publisher/concrnt.js";
 import {
@@ -38,6 +44,7 @@ const {
   DISCORD_WEBHOOK_URL,
   STATUS_DB_PATH,
   ROUTING_CONFIG_PATH,
+  HEARTBEAT_HOURS,
 } = process.env;
 
 const relays = [
@@ -60,7 +67,20 @@ const jmaFeeds = [
 ];
 
 const main = async () => {
-  const discord = new DiscordNotifier(DISCORD_WEBHOOK_URL ?? "");
+  const startedAt = new Date();
+  const counters = newCounters();
+  const notifier = new Notifier(DISCORD_WEBHOOK_URL ?? "");
+
+  // 何よりも先に起動を知らせる。以降の初期化で止まっても
+  // 「起動したことは分かる」状態にするため。
+  const first = await notifier.notify("info", "EEW System を起動しています");
+  if (!first.delivered) {
+    logger.warn(
+      "Discord へ通知できていません。以降の通知はコンソールのみに出ます",
+      { reason: first.reason },
+    );
+  }
+
   const nostr = new NostrPublisher(HEX ?? "", relays);
   const bsky = new BskyPublisher(BSKY_IDENTIFIER ?? "", BSKY_PASSWORD ?? "");
   const concrnt = new ConcrntPublisher(CONCRNT_SUBKEY ?? "", CONCRNT_CHANNEL);
@@ -81,7 +101,7 @@ const main = async () => {
     nostr,
     bsky,
     concrnt,
-    discord,
+    notifier,
     status,
   );
 
@@ -90,49 +110,39 @@ const main = async () => {
   const consume = async () => {
     while (true) {
       const telegram = await queue.pop();
+      counters.receivedDmdata += 1;
       try {
         await dispatcher.handle(telegram);
       } catch (e) {
+        counters.failures += 1;
         logger.error("failed to dispatch telegram", { err: e });
       }
     }
   };
   consume();
 
-  // 気象庁フィードの受信。分類してステータスに記録するところまでを行い、
-  // SNS への投稿はまだ接続しない (ルーティングは #20)。
-  // 配信先の定義。鍵が未設定のアカウントは投稿対象にならないが、
-  // 分類とルーティングの定義だけ先に用意しておける。
-  const router = new Router(
-    loadRoutingConfig(ROUTING_CONFIG_PATH ?? DEFAULT_ROUTING_CONFIG_PATH),
-  );
-  for (const account of router.accounts()) {
-    logger.info("routing account", {
-      key: account.key,
-      label: account.label,
-      nostr: account.nostr,
-      bluesky: account.bluesky,
-      concrnt: account.concrnt,
-    });
-  }
-
-  // 配信先ごとのクライアント。鍵が未設定の経路は投稿せず
+  // 配信先の定義。鍵が未設定の経路は投稿せず、
   // コンソールに出すテストモードとして動く。
   const routingConfig = loadRoutingConfig(
     ROUTING_CONFIG_PATH ?? DEFAULT_ROUTING_CONFIG_PATH,
   );
+  const router = new Router(routingConfig);
   const accounts = buildAccounts(routingConfig, relays);
   await initAccounts(accounts);
-  const delivery = new Delivery(accounts, router, status, discord);
+  const delivery = new Delivery(accounts, router, status, notifier, () => {
+    counters.delivered += 1;
+  });
 
   const recorder = new AlertRecorder(status, router, delivery);
   const jmaQueue = new AsyncQueue<JmaTelegram>();
   const consumeJma = async () => {
     while (true) {
       const telegram = await jmaQueue.pop();
+      counters.receivedJma += 1;
       try {
-        await recorder.record(telegram);
+        counters.recorded += await recorder.record(telegram);
       } catch (e) {
+        counters.failures += 1;
         logger.error("failed to record jma telegram", {
           url: telegram.url,
           err: e,
@@ -151,10 +161,10 @@ const main = async () => {
       onTelegram: (telegram) => jmaQueue.push(telegram),
       onFailure: (message, err) => {
         logger.error("jma feed unavailable", { err });
-        void discord.notify(`🚨 ${message}`);
+        void notifier.notify("error", "気象庁フィードの取得に失敗", message);
       },
       onRecovery: (message) => {
-        void discord.notify(`✅ ${message}`);
+        void notifier.notify("success", "気象庁フィードの取得が復旧", message);
       },
     },
   );
@@ -171,7 +181,7 @@ const main = async () => {
   const receiver = new DmdataReceiver(EEW_TOKEN ?? "", {
     onTelegram: (telegram) => queue.push(telegram),
     onDisconnect: async (reason) => {
-      await discord.notify(`🚨 ${reason}`);
+      await notifier.notify("error", "受信が切断されました", reason);
       await shutdown(0);
     },
   });
@@ -179,12 +189,49 @@ const main = async () => {
     await receiver.start();
     await jma.restore();
     jma.start();
-    await discord.notify("✅ EEW System start");
+
+    // 何が設定されていて何が動くのかを一覧で知らせる。
+    // 「起動したが動いているか分からない」状態を避けるため。
+    const summary = startupSummary({
+      dmdata: (EEW_TOKEN ?? "") !== "",
+      jmaFeeds,
+      statusDbPath: STATUS_DB_PATH ?? "./data/status.db",
+      accounts: router.accounts(),
+      discordConfigured: notifier.isConfigured(),
+    });
+    await notifier.notify("success", "EEW System が起動しました", summary);
+
+    startHeartbeat(notifier, counters, startedAt);
   } catch (error) {
     logger.error("failed to start EEW System", { err: error });
-    await discord.notify(`🚨 EEW System の起動に失敗しました。\n${error}`);
+    await notifier.notify("error", "起動に失敗しました", String(error));
     await shutdown(1);
   }
+};
+
+// 何も起きない時間が続くと、動いているのか止まっているのか分からない。
+// 定期的に稼働していることを伝える。
+const startHeartbeat = (
+  notifier: Notifier,
+  counters: Counters,
+  startedAt: Date,
+): void => {
+  const hours = Number(HEARTBEAT_HOURS ?? "6");
+  if (!Number.isFinite(hours) || hours <= 0) {
+    logger.info("稼働報告は無効です", { HEARTBEAT_HOURS });
+    return;
+  }
+  logger.info("稼働報告を開始します", { intervalHours: hours });
+  setInterval(
+    () => {
+      void notifier.notify(
+        "info",
+        "稼働中です",
+        heartbeatSummary(counters, startedAt),
+      );
+    },
+    hours * 60 * 60_000,
+  ).unref();
 };
 
 main();

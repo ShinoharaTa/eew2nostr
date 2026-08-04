@@ -129,8 +129,10 @@ describe("PublishDispatcher", () => {
     await dispatcher.flush();
 
     expect(notifier.notify).toHaveBeenCalledTimes(1);
-    expect(notifier.notify.mock.calls[0][0]).toContain("[bluesky]");
-    expect(notifier.notify.mock.calls[0][0]).toContain("eew:20240109012003");
+    const [level, title, detail] = notifier.notify.mock.calls[0];
+    expect(level).toBe("error");
+    expect(title).toContain("[bluesky]");
+    expect(detail).toContain("eew:20240109012003");
   });
 
   it("投稿が全滅してもステータスは記録される", async () => {
