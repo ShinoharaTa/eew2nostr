@@ -56,7 +56,7 @@ describe("postsForTelegram", () => {
   it("電文から投稿文を組み立てる", () => {
     const groups = postsForTelegram("VXSE53", DIR);
     expect(groups).toHaveLength(1);
-    expect(groups[0][0]).toContain("【地震情報】");
+    expect(groups[0][0]).toContain("📳 地震情報（18:41）");
   });
 
   // 気象警報は種別ごとに別の投稿になる
