@@ -10,6 +10,10 @@ import type { AlertState, HazardType, Severity } from "../classify/types.js";
 // 色が変わると「予想より弱かった」と誤読されるため。色は震度だけを表し、
 // 警報かどうかは装飾で示す。
 
+// 言語判定の保険。ひらがなとカタカナを混ぜておくと、
+// 漢字が主体の防災情報でも日本語と推定されやすい。
+export const FOOTER = "※テスト運用中です。";
+
 // 装飾の段階。
 export type Tier =
   | "act" // 命を守る行動が必要

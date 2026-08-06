@@ -1,11 +1,23 @@
 import { format, parseISO } from "date-fns";
+import { intensityLabel } from "../classify/intensity.js";
 import { logger } from "../logger.js";
+import {
+  FOOTER,
+  type Tier,
+  headline,
+  intensityColor,
+  shakingCallToAction,
+  titleWithEmoji,
+} from "../publisher/style.js";
 import type { JsonSchema } from "../types/eew";
 
 export type EEWReport = {
   isTest: boolean;
   id: string;
   isLast: boolean;
+  // 緊急地震速報 (警報) かどうか。予想最大震度5弱以上で発表される。
+  // 震度から推測せず電文の値をそのまま使う。
+  isWarning: boolean;
   serial: string | null;
   originTime: Date | null;
   reportTime: Date;
@@ -55,6 +67,7 @@ export class EEWParser {
       isTest: data.status === "通常",
       id: data.eventId,
       isLast: data.body.isLastInfo,
+      isWarning: data.body.isWarning === true,
       serial: data.serialNo,
       originTime: data.body.earthquake.originTime
         ? parseISO(data.body.earthquake.originTime)
@@ -82,37 +95,58 @@ export class EEWParser {
   }
 
   // 取消報の投稿文。取り消された事実だけを短く伝える。
+  // 取消は危険が去った知らせなので、装飾は一番軽い段階に落とす。
   generateCancelMessage(): string {
     return [
-      "【緊急地震速報 取消】",
+      headline("note", "📳 緊急地震速報 取消"),
       "",
       "先ほどの緊急地震速報は取り消されました。",
       "",
-      "※テスト運用中です。",
       "#eew",
+      "",
+      FOOTER,
     ].join("\n");
   }
 
-  generateEEWMessage(content: EEWReport) {
-    let message = "";
-    const alertTime = content.originTime
-      ? format(content.originTime, "HH:mm")
-      : "";
+  generateEEWMessage(content: EEWReport): string {
+    // 見出しは気象庁の公式名称に合わせる。
+    // 警報は予想最大震度5弱以上で発表され、命を守る行動が要る段階。
+    const tier: Tier = content.isWarning ? "act" : "warn";
     const serial = content.isLast
-      ? "(最終報)"
+      ? "最終報"
       : content.serial
-        ? `(第${content.serial}報)`
+        ? `第${content.serial}報`
         : "";
-    message += `【緊急地震速報】${alertTime} ${serial}\n`;
-    message += "\n";
-    message += `${content.place}\n`;
-    message += "\n";
-    message += `震度 ${content.forecast ?? " 不明"}（M${content.magnitude}）\n`;
-    if (content.forecastLg && content.forecastLg !== "0")
-      message += `長周期地震動階級 ${content.forecastLg}\n`;
-    message += "\n";
-    message += "※このシステムは試験運用中です。突然終了する場合があります。\n";
-    message += "#eew";
-    return message;
+    const title = `緊急地震速報（${content.isWarning ? "警報" : "予報"}）${serial}`;
+
+    const color = intensityColor(content.forecast);
+    const intensity = [
+      `${color ? `${color} ` : ""}震度${intensityLabel(content.forecast)}　${content.place}`,
+      content.forecastLg && content.forecastLg !== "0"
+        ? `（長周期地震動階級 ${content.forecastLg}）`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    // 震源名は震度の行に出ているため繰り返さない。
+    const hypocenter = [
+      content.originTime ? `${format(content.originTime, "HH:mm")}発生` : null,
+      `M${content.magnitude}`,
+      Number.isFinite(content.depth) ? `深さ${content.depth}km` : null,
+    ]
+      .filter(Boolean)
+      .join(" / ");
+
+    return [
+      headline(tier, titleWithEmoji(tier, title, "eew")),
+      intensity,
+      hypocenter,
+      shakingCallToAction("forecast", content.forecast),
+      "#eew",
+      FOOTER,
+    ]
+      .filter((part) => part !== null && part !== "")
+      .join("\n\n");
   }
 }
