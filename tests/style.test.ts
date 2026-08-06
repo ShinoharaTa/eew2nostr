@@ -17,9 +17,7 @@ describe("headline", () => {
   });
 
   it("警報級はインラインの帯で挟む", () => {
-    expect(headline("warn", "🌧️ 大雨警報 発表")).toBe(
-      "◤◢◤ 🌧️ 大雨警報 発表 ◢◤◢",
-    );
+    expect(headline("warn", "🌧️ 大雨警報 発表")).toBe("◤◢◤ 🌧️ 大雨警報 発表 ◢◤◢");
   });
 
   it("注意報級は1行", () => {
