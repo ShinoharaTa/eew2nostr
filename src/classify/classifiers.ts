@@ -12,7 +12,13 @@ import type {
   ClassifiedAlert,
   Severity,
 } from "./types.js";
-import { area, asArray, node, text } from "./xml-value.js";
+import {
+  type Node as XmlNode,
+  area,
+  asArray,
+  node,
+  text,
+} from "./xml-value.js";
 
 interface Context {
   reportedAt: string;
@@ -135,6 +141,7 @@ export const classifyEarthquake = (
         maxInt,
         maxLgInt,
         magnitude: text(earthquake?.Magnitude),
+        depth: depthKm(node(node(earthquake?.Hypocenter)?.Area)),
         originTime: text(earthquake?.OriginTime),
         place: hypocenter?.name ?? null,
         // どの地域で震度いくつを観測したか。震源だけでは伝わらないため。
@@ -142,6 +149,21 @@ export const classifyEarthquake = (
       },
     },
   ];
+};
+
+// 震源の深さ。Coordinate は "+32.5+130.6-10000/" の形で、
+// 3つ目の符号付き数値が深さ (メートル、地下が負)。description 属性にも
+// 「深さ　１０ｋｍ」と入っているが、そちらは発表文なので値の方から取る。
+// 測地系違いで複数並ぶことがあるため、読めた最初のものを使う。
+const depthKm = (hypocenterArea: XmlNode | null): string | null => {
+  for (const value of asArray(hypocenterArea?.Coordinate)) {
+    const matched = text(value)?.match(/^[+-][\d.]+[+-][\d.]+([+-][\d.]+)/);
+    if (!matched) continue;
+    const meters = Number(matched[1]);
+    if (Number.isFinite(meters))
+      return String(Math.round(Math.abs(meters) / 1000));
+  }
+  return null;
 };
 
 // 実測震度。5弱以上で被害が生じうるため段階的に上げる。

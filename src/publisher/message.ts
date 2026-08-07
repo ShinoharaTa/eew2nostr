@@ -8,14 +8,21 @@ import {
 } from "../classify/intensity.js";
 import { withPrefecture } from "../classify/prefecture.js";
 import type { ClassifiedAlert, HazardType } from "../classify/types.js";
+import {
+  FOOTER,
+  type Tier,
+  headline,
+  intensityColor,
+  severityColor,
+  shakingCallToAction,
+  tierForIntensity,
+  tierForSeverity,
+  titleWithEmoji,
+} from "./style.js";
 
 // Bluesky は 300 グラフェムが上限。地域を並べると容易に超えるため、
 // 収まらない分は件数で表す。
 export const MAX_GRAPHEMES = 300;
-
-// 言語判定の保険。ひらがなとカタカナを混ぜておくと、
-// 漢字が主体の防災情報でも日本語と推定されやすい。
-const FOOTER = "※テスト運用中です。";
 
 const HASHTAG: Record<HazardType, string> = {
   eew: "#eew",
@@ -29,6 +36,16 @@ const HASHTAG: Record<HazardType, string> = {
   "heavy-rain": "#大雨",
 };
 
+// 発表と解除を繰り返す情報。見出しにどちらかを添える。
+// 記録的短時間大雨情報や竜巻注意情報は一度きりの発表なので含めない。
+const LIFECYCLE_HAZARDS: HazardType[] = [
+  "weather",
+  "tsunami",
+  "sediment",
+  "volcano",
+  "flood",
+];
+
 const graphemes = (text: string): number => [...text].length;
 
 interface ObservedGroup {
@@ -41,11 +58,19 @@ const observedGroups = (alert: ClassifiedAlert): ObservedGroup[] => {
   return Array.isArray(value) ? (value as ObservedGroup[]) : [];
 };
 
-// 段階1件を全地域込みで並べたときの長さ
+// 震度を色付きの見出しにし、観測地域をその下にぶら下げる。
+// 段階ごとに固まるため、強い震度がどこに出たかを目で追える。
+const observedBlock = (group: ObservedGroup, names: string[]): string => {
+  const color = intensityColor(group.intensity);
+  return [
+    `${color ? `${color} ` : ""}震度${intensityLabel(group.intensity)}`,
+    ...names.map((name) => `　${name}`),
+  ].join("\n");
+};
+
+// 段階1件を全地域込みで並べたときの長さ。ブロックは空行で区切る。
 const groupCost = (group: ObservedGroup): number =>
-  graphemes(
-    `震度${intensityLabel(group.intensity)} ${group.names.join("、")}`,
-  ) + 1;
+  graphemes(observedBlock(group, group.names)) + 2;
 
 // 震度の強い順に、予算に収まるところまで詰めて投稿を切り分ける。
 //
@@ -79,26 +104,27 @@ const packGroups = (
 // 震度を観測した地域を強い順に並べる。震源だけでは
 // どの地域が揺れたか伝わらないため添える。
 // 文字数に収まらない分は地域名を件数に置き換える。
-const observedLines = (groups: ObservedGroup[], budget: number): string[] => {
-  const lines: string[] = [];
+const observedBlocks = (groups: ObservedGroup[], budget: number): string[] => {
+  const blocks: string[] = [];
   let remaining = budget;
   for (const group of groups) {
-    const head = `震度${intensityLabel(group.intensity)} `;
-    const full = head + group.names.join("、");
+    const full = observedBlock(group, group.names);
     if (graphemes(full) <= remaining) {
-      lines.push(full);
-      remaining -= graphemes(full) + 1;
+      blocks.push(full);
+      remaining -= graphemes(full) + 2;
       continue;
     }
-    const summary = `${head}${group.names[0]} ほか${group.names.length - 1}地域`;
+    const summary = observedBlock(group, [
+      `${group.names[0]} ほか${group.names.length - 1}地域`,
+    ]);
     if (group.names.length > 1 && graphemes(summary) <= remaining) {
-      lines.push(summary);
-      remaining -= graphemes(summary) + 1;
+      blocks.push(summary);
+      remaining -= graphemes(summary) + 2;
       continue;
     }
     break;
   }
-  return lines;
+  return blocks;
 };
 
 const hhmm = (iso: string | null | undefined): string => {
@@ -114,10 +140,6 @@ const detailText = (alert: ClassifiedAlert, key: string): string | null => {
   const value = alert.detail[key];
   return typeof value === "string" && value !== "" ? value : null;
 };
-
-// 見出し。解除は状態が伝わるよう語尾を変える。
-const heading = (alert: ClassifiedAlert, name: string): string =>
-  alert.state === "resolved" ? `【${name} 解除】` : `【${name}】`;
 
 const alertName = (alert: ClassifiedAlert): string => {
   switch (alert.hazard) {
@@ -142,17 +164,46 @@ const alertName = (alert: ClassifiedAlert): string => {
   }
 };
 
+// 装飾の段階。地震は震度、それ以外は緊急度で決める。
+const tierOf = (alert: ClassifiedAlert): Tier =>
+  alert.hazard === "earthquake"
+    ? tierForIntensity(detailText(alert, "maxInt") ?? "")
+    : tierForSeverity(alert.severity, alert.state);
+
+// 見出しの語。状態は記号ではなく言葉で示す。
+const titleOf = (alert: ClassifiedAlert, name: string): string => {
+  if (alert.hazard === "earthquake") {
+    // 震度速報は Earthquake 要素を持たず発生時刻が無いため、発表時刻で代える
+    const time = hhmm(detailText(alert, "originTime") ?? alert.reportedAt);
+    return time === "" ? name : `${name}（${time}）`;
+  }
+  if (alert.state === "resolved" || alert.state === "cancelled") {
+    return `${name} 解除`;
+  }
+  return LIFECYCLE_HAZARDS.includes(alert.hazard) ? `${name} 発表` : name;
+};
+
 // 種別ごとの本文。地域名は呼び出し側が組み立てる。
 const body = (alert: ClassifiedAlert): string[] => {
   const lines: string[] = [];
   switch (alert.hazard) {
     case "earthquake": {
-      const maxInt = detailText(alert, "maxInt");
+      // 震度速報 (VXSE51) は Earthquake 要素を持たず震源が分からない。
+      // 「震源 不明」と書くより出さないほうが読みやすい。
+      const place = detailText(alert, "place");
+      if (!place) break;
       const magnitude = detailText(alert, "magnitude");
-      if (maxInt)
-        lines.push(`最大震度 ${maxInt}${magnitude ? `（M${magnitude}）` : ""}`);
-      const lg = detailText(alert, "maxLgInt");
-      if (lg && lg !== "0") lines.push(`長周期地震動階級 ${lg}`);
+      const depth = detailText(alert, "depth");
+      lines.push(
+        [
+          `震源 ${place}`,
+          magnitude ? `M${magnitude}` : null,
+          // 深さ0は気象庁の表記に合わせる
+          depth === "0" ? "ごく浅い" : depth ? `深さ${depth}km` : null,
+        ]
+          .filter(Boolean)
+          .join(" / "),
+      );
       break;
     }
     case "volcano": {
@@ -199,10 +250,10 @@ const areaLine = (names: string[], budget: number): string => {
 const assemble = (
   head: string,
   areas: string,
-  lines: string[],
+  blocks: string[],
   hashtag: string,
 ): string =>
-  [head + (areas ? `\n${areas}` : ""), lines.join("\n"), FOOTER, hashtag]
+  [head, areas, ...blocks, hashtag, FOOTER]
     .filter((part) => part !== "")
     .join("\n\n");
 
@@ -219,28 +270,47 @@ export const formatAlertPosts = (
   if (alerts.length === 0) return [];
   const first = alerts[0];
   const name = alertName(first);
-  // 震度速報は Earthquake 要素を持たず発生時刻が無いため、発表時刻で代える
-  const head =
-    first.hazard === "earthquake"
-      ? `${heading(first, name)}${hhmm(detailText(first, "originTime") ?? first.reportedAt)}`
-      : heading(first, name);
+  const tier = tierOf(first);
+  const title = titleOf(first, name);
+  const head = headline(tier, titleWithEmoji(tier, title, first.hazard));
   const lines = body(first);
   const hashtag = HASHTAG[first.hazard] ?? "";
 
+  const maxInt = detailText(first, "maxInt") ?? "";
+  const isEarthquake = first.hazard === "earthquake";
+
+  // 長周期地震動階級は震度に付与される情報なので、震度の並びの後に置く。
+  const lgInt = detailText(first, "maxLgInt");
+  const suffix = [
+    isEarthquake && lgInt && lgInt !== "0"
+      ? `（長周期地震動階級 ${lgInt}）`
+      : null,
+    isEarthquake ? shakingCallToAction("observed", maxInt) : null,
+  ].filter((part): part is string => part !== null);
+
   // 全国に配信するため、地域名には都道府県名を含める。
   // 気象庁の地域コードは先頭2桁が都道府県コードになっている。
-  const names = [
-    ...new Set(
-      alerts
-        .map((a) => (a.area ? withPrefecture(a.area.name, a.area.code) : ""))
-        .filter(Boolean),
-    ),
-  ];
-  // 見出し・本文・注記・タグを除いた残りを地域名に割り当てる
-  const fixed = graphemes(assemble(head, "", lines, hashtag));
-  const areas = areaLine(names, Math.max(0, maxGraphemes - fixed));
+  // 地震の area は震央地名で、震源の行に出るためここでは扱わない。
+  const names = isEarthquake
+    ? []
+    : [
+        ...new Set(
+          alerts
+            .map((a) =>
+              a.area ? withPrefecture(a.area.name, a.area.code) : "",
+            )
+            .filter(Boolean),
+        ),
+      ];
+  // 見出し・本文・注記・タグを除いた残りを地域名に割り当てる。
+  // 解除は危険度を示す色を持たないため、地域名だけを出す。
+  const resolved = first.state === "resolved" || first.state === "cancelled";
+  const color = resolved ? "" : `${severityColor(first.severity, name)} `;
+  const fixed = graphemes(assemble(head, "", [...lines, ...suffix], hashtag));
+  const listed = areaLine(names, Math.max(0, maxGraphemes - fixed - 2));
+  const areas = listed === "" ? "" : `${color}${listed}`;
 
-  const base = assemble(head, areas, lines, hashtag);
+  const base = assemble(head, areas, [...lines, ...suffix], hashtag);
 
   // 地震は震度を観測した地域を添える。
   // 震度1〜2は件数が多く全国配信では判断に寄与しないため落とす。
@@ -252,20 +322,41 @@ export const formatAlertPosts = (
   const build = (selected: ObservedGroup[], label: string): string | null => {
     if (selected.length === 0) return null;
     // 分割したときだけ、その投稿が扱う震度の範囲を見出しに出す
-    const title = label === "" ? head : `${head} ${label}`;
-    const used = graphemes(assemble(title, areas, lines, hashtag));
-    const observed = observedLines(
+    const splitHead =
+      label === ""
+        ? head
+        : headline(
+            tier,
+            titleWithEmoji(tier, `${title} ${label}`, first.hazard),
+          );
+    const used = graphemes(
+      assemble(splitHead, areas, [...lines, ...suffix], hashtag),
+    );
+    const observed = observedBlocks(
       selected,
       Math.max(0, maxGraphemes - used - 2),
     );
     if (observed.length === 0) return null;
-    return assemble(title, areas, [...lines, "", ...observed], hashtag);
+    return assemble(
+      splitHead,
+      areas,
+      [...lines, ...observed, ...suffix],
+      hashtag,
+    );
   };
 
   // 予算は、見出し・震源・本文・注記・タグを除いた残り。
   // 分割時は範囲の見出しが加わるため、その分を見込んでおく。
   const overhead = graphemes(
-    assemble(`${head} 震度6強〜5弱`, areas, lines, hashtag),
+    assemble(
+      headline(
+        tier,
+        titleWithEmoji(tier, `${title} 震度6強〜5弱`, first.hazard),
+      ),
+      areas,
+      [...lines, ...suffix],
+      hashtag,
+    ),
   );
   const packed = packGroups(groups, Math.max(0, maxGraphemes - overhead - 2));
 

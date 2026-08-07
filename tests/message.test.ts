@@ -41,9 +41,9 @@ const ALL_TYPES = [
 describe("投稿文の生成", () => {
   it("地震情報は発生時刻・震源・最大震度を出す", () => {
     const [text] = posts("VXSE53");
-    expect(text).toContain("【地震情報】18:41");
-    expect(text).toContain("熊本県天草・芦北地方");
-    expect(text).toContain("最大震度 3（M3.8）");
+    expect(text).toContain("▽ 📳 地震情報（18:41）");
+    expect(text).toContain("震源 熊本県天草・芦北地方 / M3.8");
+    expect(text).toContain("🟡 震度3");
   });
 
   // 震度1〜2は件数が多く、全国配信では読み手の判断にほとんど寄与しない
@@ -57,9 +57,9 @@ describe("投稿文の生成", () => {
 
     it("震度1〜2は載せない", () => {
       const [text] = posts("VXSE53");
-      expect(text).toContain("震度3 ");
-      expect(text).not.toContain("震度2 ");
-      expect(text).not.toContain("震度1 ");
+      expect(text).toContain("震度3");
+      expect(text).not.toContain("震度2");
+      expect(text).not.toContain("震度1");
     });
 
     it("収まるなら1投稿にまとめる", () => {
@@ -117,13 +117,17 @@ describe("投稿文の生成", () => {
       ]);
       expect(result.length).toBeGreaterThan(1);
       for (const text of result) {
-        expect(text).toMatch(/^【地震情報】\d{2}:\d{2} 震度/);
+        expect(text).toMatch(/地震情報（\d{2}:\d{2}） 震度/);
       }
     });
 
     it("1投稿で済む場合は範囲の見出しを付けない", () => {
-      const [text] = posts("VXSE62");
-      expect(text).toMatch(/^【地震情報】\d{2}:\d{2}\n/);
+      const result = observed([
+        { intensity: "4", names: ["宮城県北部"] },
+        { intensity: "3", names: ["福島県中通り"] },
+      ]);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatch(/地震情報（\d{2}:\d{2}）\n\n/);
     });
 
     // 気象庁の表記に合わせる
@@ -145,9 +149,12 @@ describe("投稿文の生成", () => {
       ]);
       expect(result.length).toBeGreaterThan(1);
       for (const text of result) {
-        expect(text).toContain("熊本県熊本地方");
-        expect(text).toContain("最大震度 7");
+        expect(text).toContain("震源 熊本県熊本地方");
+        // 見出しにその投稿が扱う震度の範囲が出る
+        expect(text).toMatch(/地震情報（\d{2}:\d{2}） 震度/);
       }
+      // 最も強い震度は先頭の投稿にある
+      expect(result[0]).toContain("🟣 震度7");
     });
   });
 
@@ -155,12 +162,12 @@ describe("投稿文の生成", () => {
   // 電文は都道府県 > 細分区域 > 市町村の階層を持つので細分区域を出す。
   it("震度を観測した地域を震度ごとに出す", () => {
     const [text] = posts("VXSE53");
-    expect(text).toContain("震度3 熊本県天草・芦北");
+    expect(text).toContain("🟡 震度3\n\u3000熊本県天草・芦北");
   });
 
   it("観測地域は震度の強い順に並ぶ", () => {
     const [text] = posts("VXSE62");
-    const order = [...text.matchAll(/震度([0-9]弱|[0-9]強|[0-9]) /g)].map(
+    const order = [...text.matchAll(/^. 震度([0-9]弱|[0-9]強|[0-9])$/gmu)].map(
       (m) => m[1],
     );
     expect(order.slice(0, 4)).toEqual(["7", "6弱", "5強", "5弱"]);
@@ -187,33 +194,35 @@ describe("投稿文の生成", () => {
   // 震度速報は Earthquake 要素を持たず発生時刻が無い
   it("発生時刻が無い震度速報は発表時刻を出す", () => {
     const [text] = posts("VXSE51");
-    expect(text).toMatch(/^【地震情報】\d{2}:\d{2}/);
+    expect(text).toMatch(/地震情報（\d{2}:\d{2}）/);
   });
 
   it("長周期地震動階級は本文に添える", () => {
     const [text] = posts("VXSE62");
-    expect(text).toContain("最大震度 7");
-    expect(text).toContain("長周期地震動階級 4");
+    expect(text).toContain("🟣 震度7");
+    expect(text).toContain("（長周期地震動階級 4）");
   });
 
   it("解除は見出しで分かるようにする", () => {
     const [text] = posts("VTSE41");
-    expect(text).toContain("【津波注意報 解除】");
+    expect(text).toContain("▽ 🌊 津波注意報 解除");
     expect(text).toContain("有明・八代海");
     // 見出しに解除を出すので種別名側には残さない
-    expect(text).not.toContain("津波注意報解除】");
+    expect(text).not.toContain("津波注意報解除");
+    // 解除は危険度を示す色を持たない
+    expect(text).not.toMatch(/[🟣🔴🟠🟡⚫⚪]/u);
   });
 
   it("噴火警報はレベルと変化を出す", () => {
     const [text] = posts("VFVO50");
-    expect(text).toContain("【噴火警報】");
+    expect(text).toContain("🌋 噴火警報 発表");
     expect(text).toContain("口永良部島");
     expect(text).toContain("レベル２（火口周辺規制）に引上げ");
   });
 
   it("竜巻注意情報は有効期限を出す", () => {
     const [text] = posts("VPHW50");
-    expect(text).toContain("【竜巻注意情報】");
+    expect(text).toContain("▽ 🌪️ 竜巻注意情報");
     expect(text).toMatch(/\d{2}:\d{2}まで有効/);
   });
 
@@ -295,8 +304,8 @@ describe("投稿文の生成", () => {
   describe("共通", () => {
     it.each(ALL_TYPES)("%s の投稿に注記とタグが入る", (type) => {
       for (const text of posts(type)) {
-        expect(text).toContain("※テスト運用中です");
-        expect(text).toMatch(/#\S+$/);
+        expect(text).toMatch(/※テスト運用中です。$/);
+        expect(text).toMatch(/#\S+\n\n※/);
       }
     });
 
