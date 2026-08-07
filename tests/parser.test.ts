@@ -169,9 +169,8 @@ describe("EEWParser", () => {
         forecastFrom: "不明",
         forecast: "不明",
       });
-      expect(message).toContain("震度不明");
-      // 震度が決まらないので色は付けない
-      expect(message).not.toMatch(/[🟣🔴🟠🟡]/u);
+      // 震度が決まらなくても注意は促したいので一番軽い色を付ける
+      expect(message).toContain("🟡 震度不明");
       expect(message).toContain("M3.5");
     });
 

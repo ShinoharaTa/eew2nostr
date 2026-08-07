@@ -1,4 +1,4 @@
-import { intensityRank } from "../classify/intensity.js";
+import { UNKNOWN_INTENSITY, intensityRank } from "../classify/intensity.js";
 import type { AlertState, HazardType, Severity } from "../classify/types.js";
 
 // 投稿の見た目を決める層。軸は2本あり、それぞれ1つの意味だけを持つ。
@@ -39,6 +39,9 @@ export const headline = (tier: Tier, title: string): string => {
 // 震度の色。緊急地震速報と地震情報で共通。
 // 上に行くほど幅が狭くなり、重い側ほど細かく分かれる。
 export const intensityColor = (intensity: string): string | null => {
+  // 予想震度が決まらなくても注意は促したいので、一番軽い色を付ける。
+  // 色が無いと行頭が揃わず、読み飛ばされやすくなる。
+  if (intensity === UNKNOWN_INTENSITY) return "🟡";
   const rank = intensityRank(intensity);
   if (rank < 0) return null;
   if (intensity === "7") return "🟣";

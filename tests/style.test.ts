@@ -47,7 +47,12 @@ describe("intensityColor", () => {
     expect(intensityColor(intensity)).toBe(color);
   });
 
-  it.each(["0", "不明", "over", ""])("%s は色を持たない", (value) => {
+  // 予想震度が決まらなくても注意は促す
+  it("不明は一番軽い色を付ける", () => {
+    expect(intensityColor("不明")).toBe("🟡");
+  });
+
+  it.each(["0", "over", ""])("%s は色を持たない", (value) => {
     expect(intensityColor(value)).toBeNull();
   });
 });
