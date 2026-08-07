@@ -20,6 +20,7 @@ interface Row {
   detail: string;
   posts: string;
   deliveries: string | null;
+  last_post_text: string | null;
   revision: number;
 }
 
@@ -40,6 +41,7 @@ const toRecord = (row: Row): AlertStatusRecord => ({
   detail: JSON.parse(row.detail),
   posts: JSON.parse(row.posts),
   deliveries: row.deliveries ? JSON.parse(row.deliveries) : {},
+  lastPostText: row.last_post_text ?? null,
   revision: row.revision,
 });
 
@@ -81,6 +83,7 @@ export class SqliteStatusStore implements StatusStore {
         detail       TEXT NOT NULL,
         posts        TEXT NOT NULL,
         deliveries   TEXT,
+        last_post_text TEXT,
         revision     INTEGER NOT NULL,
         mirrored_at  TEXT
       );
@@ -108,6 +111,7 @@ export class SqliteStatusStore implements StatusStore {
       ["area", "TEXT"],
       ["area_type", "TEXT"],
       ["deliveries", "TEXT"],
+      ["last_post_text", "TEXT"],
     ]) {
       if (!existing.has(name)) {
         db.exec(`ALTER TABLE alert_status ADD COLUMN ${name} ${type}`);
@@ -127,8 +131,8 @@ export class SqliteStatusStore implements StatusStore {
       .prepare(`
         INSERT INTO alert_status (
           key, category, kind, severity, status, published_at, updated_at,
-          expires_at, serial, headline, area, area_type, detail, posts, deliveries, revision, mirrored_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+          expires_at, serial, headline, area, area_type, detail, posts, deliveries, last_post_text, revision, mirrored_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
         ON CONFLICT(key) DO UPDATE SET
           category     = excluded.category,
           kind         = excluded.kind,
@@ -144,6 +148,7 @@ export class SqliteStatusStore implements StatusStore {
           detail       = excluded.detail,
           posts        = excluded.posts,
           deliveries   = excluded.deliveries,
+          last_post_text = excluded.last_post_text,
           revision     = excluded.revision,
           mirrored_at  = NULL
       `)
@@ -163,6 +168,7 @@ export class SqliteStatusStore implements StatusStore {
         JSON.stringify(record.detail),
         JSON.stringify(record.posts),
         JSON.stringify(record.deliveries),
+        record.lastPostText ?? null,
         record.revision,
       );
   }
