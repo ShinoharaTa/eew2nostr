@@ -1,5 +1,9 @@
 import { format, parseISO } from "date-fns";
-import { intensityLabel } from "../classify/intensity.js";
+import {
+  UNKNOWN_INTENSITY,
+  forecastIntensityLabel,
+  forecastIntensityValue,
+} from "../classify/intensity.js";
 import { logger } from "../logger.js";
 import {
   FOOTER,
@@ -26,6 +30,8 @@ export type EEWReport = {
   longitude: number;
   depth: number;
   magnitude: string;
+  // 予想最大震度の下限。to が "over" のときはこちらが表示に使われる。
+  forecastFrom: string;
   forecast: string;
   forecastLg: string | null;
 };
@@ -85,9 +91,12 @@ export class EEWParser {
         data.body.earthquake.magnitude.value ??
         data.body.earthquake.magnitude.condition ??
         "不明",
+      forecastFrom: data.body.intensity
+        ? data.body.intensity.forecastMaxInt.from
+        : UNKNOWN_INTENSITY,
       forecast: data.body.intensity
         ? data.body.intensity.forecastMaxInt.to
-        : "不明",
+        : UNKNOWN_INTENSITY,
       forecastLg: data.body.intensity?.forecastMaxLgInt
         ? data.body.intensity.forecastMaxLgInt.to
         : null,
@@ -119,9 +128,14 @@ export class EEWParser {
         : "";
     const title = `緊急地震速報（${content.isWarning ? "警報" : "予報"}）${serial}`;
 
-    const color = intensityColor(content.forecast);
+    // 予想震度は from / to の範囲。to だけを見ると "over" が表に出る。
+    const value = forecastIntensityValue(
+      content.forecastFrom,
+      content.forecast,
+    );
+    const color = intensityColor(value);
     const intensity = [
-      `${color ? `${color} ` : ""}震度${intensityLabel(content.forecast)}　${content.place}`,
+      `${color ? `${color} ` : ""}${forecastIntensityLabel(content.forecastFrom, content.forecast)}　${content.place}`,
       content.forecastLg && content.forecastLg !== "0"
         ? `（長周期地震動階級 ${content.forecastLg}）`
         : null,
@@ -142,7 +156,10 @@ export class EEWParser {
       headline(tier, titleWithEmoji(tier, title, "eew")),
       intensity,
       hypocenter,
-      shakingCallToAction("forecast", content.forecast),
+      // 警報は予想最大震度5弱以上で発表される。震度が決まらなくても
+      // 警報である事実は確かなので呼びかけは残す。
+      shakingCallToAction("forecast", value) ??
+        (content.isWarning ? "強い揺れに注意してください。" : null),
       "#eew",
       FOOTER,
     ]

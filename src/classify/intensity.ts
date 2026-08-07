@@ -27,6 +27,31 @@ export const MAX_SPLIT_POSTS = 3;
 export const intensityLabel = (value: string): string =>
   value.replace(/-$/, "弱").replace(/\+$/, "強");
 
+export const UNKNOWN_INTENSITY = "不明";
+
+// 緊急地震速報の予想震度は from / to の範囲で来る。
+//   to = "over"  上限が決まらない。from と組で「震度5弱程度以上」を表す
+//   不明          予想震度を決められなかった。over とは別物
+// to だけを見ると "over" がそのまま表に出てしまうため、両方を使う。
+export const forecastIntensityLabel = (from: string, to: string): string => {
+  if (to === "over") {
+    return from === UNKNOWN_INTENSITY
+      ? "震度不明"
+      : `震度${intensityLabel(from)}程度以上`;
+  }
+  if (to === UNKNOWN_INTENSITY || from === UNKNOWN_INTENSITY) return "震度不明";
+  if (from === to) return `震度${intensityLabel(to)}`;
+  return `震度${intensityLabel(from)}〜${intensityLabel(to)}`;
+};
+
+// 色や呼びかけの判断に使う代表値。上限が決まらないときは下限を採る。
+// どちらかが不明なら不明。色だけ付いて表記が「震度不明」になるのを防ぐ。
+export const forecastIntensityValue = (from: string, to: string): string => {
+  if (from === UNKNOWN_INTENSITY || to === UNKNOWN_INTENSITY)
+    return UNKNOWN_INTENSITY;
+  return to === "over" ? from : to;
+};
+
 // 投稿が含む震度の範囲を表す見出し。
 export const intensityRangeLabel = (values: string[]): string => {
   if (values.length === 0) return "";

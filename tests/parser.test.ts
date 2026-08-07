@@ -122,6 +122,7 @@ describe("EEWParser", () => {
       const warning = parser.generateEEWMessage({
         ...base,
         isWarning: true,
+        forecastFrom: "6+",
         forecast: "6+",
       });
       expect(warning).toContain("◤◢◤◢◤◢◤◢◤◢◤◢◤◢\n緊急地震速報（警報）");
@@ -140,10 +141,51 @@ describe("EEWParser", () => {
       const message = parser.generateEEWMessage({
         ...reportOf(),
         isWarning: false,
+        forecastFrom: "2",
         forecast: "2",
       });
       expect(message).toContain("🟡 震度2");
       expect(message).not.toContain("してください");
+    });
+
+    // to = "over" は上限が決まらないことを表す。to だけを見ると
+    // 「震度over」と出てしまうため from と組で扱う。
+    it("上限が決まらない予想震度は程度以上と出す", () => {
+      const message = parser.generateEEWMessage({
+        ...reportOf(),
+        isWarning: true,
+        forecastFrom: "5-",
+        forecast: "over",
+      });
+      expect(message).toContain("🟠 震度5弱程度以上");
+      expect(message).not.toContain("over");
+    });
+
+    // 予想震度が決まらなくても M3.5 以上の地震として配信する
+    it("震度不明でも投稿文になる", () => {
+      const message = parser.generateEEWMessage({
+        ...reportOf(),
+        isWarning: false,
+        forecastFrom: "不明",
+        forecast: "不明",
+      });
+      expect(message).toContain("震度不明");
+      // 震度が決まらないので色は付けない
+      expect(message).not.toMatch(/[🟣🔴🟠🟡]/u);
+      expect(message).toContain("M3.5");
+    });
+
+    // 警報は予想最大震度5弱以上で発表される。震度が決まらなくても
+    // 警報である事実は確かなので呼びかけは残す。
+    it("震度不明の警報でも呼びかける", () => {
+      const message = parser.generateEEWMessage({
+        ...reportOf(),
+        isWarning: true,
+        forecastFrom: "不明",
+        forecast: "不明",
+      });
+      expect(message).toContain("震度不明");
+      expect(message).toContain("強い揺れに注意してください。");
     });
   });
 });
