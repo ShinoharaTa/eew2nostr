@@ -73,7 +73,7 @@ describe("Delivery", () => {
       ]),
     );
 
-    delivery.deliver(alertsOf("VXSE53")); // 地震 = observed
+    await delivery.deliver(alertsOf("VXSE53")); // 地震 = observed
     await delivery.flush();
 
     expect(observed.publishNote).toHaveBeenCalledTimes(1);
@@ -86,7 +86,7 @@ describe("Delivery", () => {
       new Map([["observed", observed.clients]]),
     );
 
-    delivery.deliver(alertsOf("VPWW53")); // 注意報 = 記録のみ
+    await delivery.deliver(alertsOf("VPWW53")); // 注意報 = 記録のみ
     await delivery.flush();
 
     expect(observed.publishNote).not.toHaveBeenCalled();
@@ -99,7 +99,7 @@ describe("Delivery", () => {
       new Map([["observed", observed.clients]]),
     );
 
-    delivery.deliver(alertsOf("VXSE53"));
+    await delivery.deliver(alertsOf("VXSE53"));
     await delivery.flush();
 
     expect(observed.publishNote).not.toHaveBeenCalled();
@@ -119,7 +119,7 @@ describe("Delivery", () => {
     const [alert] = alertsOf("VXSE62");
     const many = (n: number) =>
       Array.from({ length: n }, (_, i) => `${i}県北部`);
-    delivery.deliver([
+    await delivery.deliver([
       {
         ...alert,
         detail: {
@@ -178,9 +178,9 @@ describe("Delivery", () => {
       () => {},
     );
 
-    delivery.deliver([first]);
+    await delivery.deliver([first]);
     await delivery.flush();
-    delivery.deliver(alertsOf("VXSE53")); // 同じ地震の続報
+    await delivery.deliver(alertsOf("VXSE53")); // 同じ地震の続報
     await delivery.flush();
 
     expect(observed.publishNote).toHaveBeenCalledTimes(2);
@@ -197,7 +197,7 @@ describe("Delivery", () => {
       new Map([["warning", warning.clients]]),
     );
 
-    delivery.deliver(alertsOf("VXWW50")); // 土砂 = 複数地域
+    await delivery.deliver(alertsOf("VXWW50")); // 土砂 = 複数地域
     await delivery.flush();
 
     for (const call of warning.publishNote.mock.calls) {
@@ -218,8 +218,93 @@ describe("Delivery", () => {
       notifier,
     );
 
-    delivery.deliver(alertsOf("VXSE53"));
+    await delivery.deliver(alertsOf("VXSE53"));
     await expect(delivery.flush()).resolves.toBeUndefined();
     expect(notifier.notify).toHaveBeenCalled();
+  });
+
+  // VPWW53 は県内のどこかで別の警報が動くたびに再発表され、変化していない
+  // 警報も「継続」で毎回載ってくる。同じ文面を繰り返し投稿しない。
+  describe("同一文面の抑制", () => {
+    // AlertRecorder が upsert するレコードを模す
+    const recordOf = (alert: ClassifiedAlert) => ({
+      key: alert.key,
+      category: alert.hazard,
+      kind: alert.kind,
+      severity: alert.severity,
+      status: alert.state,
+      publishedAt: alert.reportedAt,
+      updatedAt: alert.reportedAt,
+      expiresAt: alert.expiresAt,
+      serial: null,
+      headline: alert.headline,
+      area: alert.area,
+      areaType: alert.areaType,
+      detail: alert.detail,
+      posts: {},
+      deliveries: {},
+      lastPostText: null,
+      revision: 0,
+    });
+
+    it("同じ文面の再配信はしない", async () => {
+      const warning = account("observed", true);
+      const { delivery, status } = await newDelivery(
+        new Map([["observed", warning.clients]]),
+      );
+      const alerts = alertsOf("VXSE53");
+      for (const alert of alerts)
+        await status.upsert(recordOf(alert), () => {});
+
+      await delivery.deliver(alerts);
+      await delivery.flush();
+      const first = warning.publishNote.mock.calls.length;
+      expect(first).toBeGreaterThan(0);
+
+      // 再発表 (内容は同一) を受けたときと同じ流れ
+      for (const alert of alerts)
+        await status.upsert(recordOf(alert), () => {});
+      await delivery.deliver(alerts);
+      await delivery.flush();
+
+      expect(warning.publishNote.mock.calls.length).toBe(first);
+    });
+
+    it("文面が変わっていれば配信する", async () => {
+      const observed = account("observed", true);
+      const { delivery, status } = await newDelivery(
+        new Map([["observed", observed.clients]]),
+      );
+      const alerts = alertsOf("VXSE53");
+      for (const alert of alerts)
+        await status.upsert(recordOf(alert), () => {});
+
+      await delivery.deliver(alerts);
+      await delivery.flush();
+      const first = observed.publishNote.mock.calls.length;
+
+      // 続報で内容が更新された場合 (規模の更新など) は文面が変わる
+      const updated = alerts.map((alert) => ({
+        ...alert,
+        detail: { ...alert.detail, magnitude: "4.2" },
+      }));
+      await delivery.deliver(updated);
+      await delivery.flush();
+
+      expect(observed.publishNote.mock.calls.length).toBeGreaterThan(first);
+    });
+
+    it("レコードが無ければ抑制せず配信する", async () => {
+      const observed = account("observed", true);
+      const { delivery } = await newDelivery(
+        new Map([["observed", observed.clients]]),
+      );
+
+      // upsert していない = ステータスに前回の記録が無い
+      await delivery.deliver(alertsOf("VXSE53"));
+      await delivery.flush();
+
+      expect(observed.publishNote).toHaveBeenCalled();
+    });
   });
 });

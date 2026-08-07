@@ -33,7 +33,7 @@ export class Delivery {
   ) {}
 
   // 1通の電文から生まれた防災イベントを配信する。
-  deliver(alerts: ClassifiedAlert[]): void {
+  async deliver(alerts: ClassifiedAlert[]): Promise<void> {
     for (const group of groupForPosting(alerts)) {
       const head = group[0];
       const targets = this.router.route({
@@ -46,6 +46,30 @@ export class Delivery {
 
       const posts = formatAlertPosts(group);
       if (posts.length === 0) continue;
+
+      // 前回配信した文面と完全に一致するなら送らない。
+      // VPWW53 は県内のどこかで別の警報が動くたびに再発表され、変化して
+      // いない警報も「継続」で毎回載ってくるため、そのまま流すと同じ投稿が
+      // 何度も並ぶ。文面で比べるので、地震の続報 (震源や地域が加わる) や
+      // 解除 (見出しが変わる) は今までどおり流れる。
+      const signature = JSON.stringify(posts);
+      if (
+        group.every(
+          (alert) => this.status.get(alert.key)?.lastPostText === signature,
+        )
+      ) {
+        logger.info("前回と同じ文面のため配信しません", {
+          keys: group.map((alert) => alert.key).slice(0, 5),
+        });
+        continue;
+      }
+      // 投稿の成否を待たずに配信済み扱いにする。失敗時に同じ文面の再発表で
+      // 補われることは期待せず、失敗は notifier の通知で気付く方針。
+      for (const alert of group) {
+        await this.status.update(alert.key, (record) => {
+          record.lastPostText = signature;
+        });
+      }
       // 続報を前の投稿に繋げるのは、地域が1つに定まる場合だけ。
       // 気象警報のように複数地域をまとめた投稿は、
       // どのイベントの続きか一意に決められないため繋げない。

@@ -29,6 +29,7 @@ const sampleRecord = (
   detail: { place: "石川県能登地方", magnitude: "3.5" },
   posts: {},
   deliveries: {},
+  lastPostText: null,
   revision: 1,
   ...overrides,
 });

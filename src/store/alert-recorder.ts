@@ -25,6 +25,7 @@ const initialRecord = (alert: ClassifiedAlert): AlertStatusRecord => ({
   detail: alert.detail,
   posts: {},
   deliveries: {},
+  lastPostText: null,
   revision: 0,
 });
 
@@ -70,7 +71,8 @@ export class AlertRecorder {
       this.logRouting(alert);
     }
     // 記録を終えてから配信する。投稿が全滅しても記録は残る。
-    this.delivery?.deliver([...latest.values()]);
+    // 配信判断は直前に記録したレコード (前回の投稿文) を参照する。
+    await this.delivery?.deliver([...latest.values()]);
 
     logger.info("alerts recorded", {
       type: telegram.type,

@@ -47,6 +47,10 @@ export interface AlertStatusRecord {
   // 4系統への配信先ごとの投稿参照。既存の posts は
   // 緊急地震速報の従来経路が使い続ける。
   deliveries: AlertDeliveries;
+  // 最後に配信した投稿文の署名。
+  // VPWW53 は県内のどこかで別の警報が動くたびに再発表され、変化していない
+  // 警報も「継続」で毎回載ってくるため、同じ文面の再配信を抑制する。
+  lastPostText?: string | null;
   // 保存のたびに増える版番号。ミラー完了を記録する際の突き合わせに使う。
   revision: number;
 }
@@ -94,6 +98,7 @@ export const initialEEWRecord = (report: EEWReport): AlertStatusRecord => ({
   detail: eewDetail(report),
   posts: {},
   deliveries: {},
+  lastPostText: null,
   revision: 0,
 });
 
