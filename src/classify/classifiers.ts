@@ -410,3 +410,120 @@ export const classifyHeavyRain = (
   }
   return alerts;
 };
+
+// 噴火速報 (VFVO56)。噴火が発生した事実だけを最速で伝える。
+// 噴火警報より先に出ることがあるため、警戒レベルとは独立に扱う。
+// 発表されること自体が異常事態なので段階を持たず emergency 固定。
+export const classifyEruptionFlash = (
+  report: JmaReport,
+  ctx: Context,
+): ClassifiedAlert[] => {
+  const eventId = report.head.eventId;
+  if (!eventId) return [];
+  const cancelled = report.head.infoType === "取消";
+
+  const infos = asArray(report.body.VolcanoInfo);
+  const flash = infos.find((v) => text(v["@type"]) === "噴火速報");
+  const item = node(asArray(node(flash)?.Item)[0]);
+  const target = area(node(node(item?.Areas)?.Area));
+  // 取消報は VolcanoInfo を持たない。対象火山が無くても取消は流す。
+  if (!target && !cancelled) return [];
+
+  // 影響が及ぶ市町村。対象火山とは別ブロックに入っている。
+  const municipalities = infos
+    .filter((v) => text(v["@type"])?.includes("対象市町村") ?? false)
+    .flatMap((v) => asArray(node(v)?.Item))
+    .flatMap((i) =>
+      asArray(
+        node(i as object)?.Areas ? node(node(i as object)?.Areas)?.Area : [],
+      ),
+    )
+    .map((a) => area(a)?.name)
+    .filter((name): name is string => Boolean(name));
+
+  return [
+    {
+      key: `eruption:${eventId}`,
+      areaType: "火山",
+      kind: ctx.kind,
+      hazard: "volcano",
+      severity: cancelled ? "info" : "emergency",
+      state: cancelled ? "cancelled" : "active",
+      headline: ctx.headline,
+      reportedAt: ctx.reportedAt,
+      expiresAt: ctx.expiresAt,
+      area: target ?? null,
+      detail: {
+        infoKind: "噴火速報",
+        eventTime: text(node(node(item?.EventTime))?.EventDateTime),
+        municipalities,
+      },
+    },
+  ];
+};
+
+// 南海トラフ地震臨時情報 (VYSE50) の段階。InfoSerial/Code に構造化されている。
+// 名前ではなくコードで判定する (表記ゆれに強い)。
+const MEGAQUAKE_STAGES: Record<
+  string,
+  { severity: Severity; state: AlertState }
+> = {
+  "111": { severity: "warning", state: "active" }, // 調査中 (地震)
+  "112": { severity: "warning", state: "active" }, // 調査中 (ゆっくりすべり)
+  "113": { severity: "warning", state: "active" }, // 調査中 (その他)
+  "120": { severity: "emergency", state: "active" }, // 巨大地震警戒
+  "130": { severity: "emergency", state: "active" }, // 巨大地震注意
+  "190": { severity: "info", state: "resolved" }, // 調査終了
+};
+
+// 南海トラフ地震臨時情報 (VYSE50) / 北海道・三陸沖後発地震注意情報 (VYSE60)。
+// 発表されれば全国規模で防災対応が動く。震度も震源も持たないため、
+// 地震情報 (earthquake) には混ぜず独立の種別にする。
+export const classifyMegaquake = (
+  report: JmaReport,
+  ctx: Context,
+): ClassifiedAlert[] => {
+  const eventId = report.head.eventId;
+  if (!eventId) return [];
+  const cancelled = report.head.infoType === "取消";
+
+  const info = node(report.body.EarthquakeInfo);
+  const infoKind = text(info?.InfoKind) ?? ctx.title;
+  const serial = node(info?.InfoSerial);
+  const stageCode = text(serial?.Code);
+  // 取消報は InfoSerial を持たない。段階が読めない発表は安全側に倒す。
+  const stage = cancelled
+    ? { severity: "info" as const, state: "cancelled" as const }
+    : ((stageCode ? MEGAQUAKE_STAGES[stageCode] : undefined) ?? {
+        severity: "emergency" as const,
+        state: "active" as const,
+      });
+
+  // 対象領域。電文は地域要素を持たないため、情報の定義から固定で与える。
+  const nankai =
+    infoKind.includes("南海トラフ") || ctx.title.includes("南海トラフ");
+  return [
+    {
+      key: `megaquake:${eventId}`,
+      areaType: "対象領域",
+      kind: ctx.kind,
+      hazard: "megaquake",
+      severity: stage.severity,
+      state: stage.state,
+      headline: ctx.headline,
+      reportedAt: ctx.reportedAt,
+      expiresAt: ctx.expiresAt,
+      area: nankai
+        ? { name: "南海トラフ地震の想定震源域", code: "" }
+        : { name: "日本海溝・千島海溝沿いの想定震源域", code: "" },
+      detail: {
+        title: ctx.title,
+        infoKind,
+        stage: text(serial?.Name),
+        stageCode,
+        // 本文は Head/Headline を使う。Body/Text は解説が数千字あり載らない。
+        text: ctx.headline,
+      },
+    },
+  ];
+};

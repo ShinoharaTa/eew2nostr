@@ -1,8 +1,10 @@
 import type { JmaReport } from "../receiver/jma-xml.js";
 import {
   classifyEarthquake,
+  classifyEruptionFlash,
   classifyFlood,
   classifyHeavyRain,
+  classifyMegaquake,
   classifySediment,
   classifyTornado,
   classifyTsunami,
@@ -56,10 +58,14 @@ const CLASSIFIERS: Record<string, Handler> = {
   // 長周期地震動階級 (MaxLgInt) を両方持つ。
   VXSE62: observed(classifyEarthquake),
 
+  VYSE50: forecast(classifyMegaquake), // 南海トラフ地震臨時情報
+  VYSE60: forecast(classifyMegaquake), // 北海道・三陸沖後発地震注意情報
+
   VTSE41: forecast(classifyTsunami), // 津波警報・注意報・予報
   VTSE51: observed(classifyTsunami), // 津波情報
 
   VFVO50: forecast(classifyVolcano), // 噴火警報・予報
+  VFVO56: observed(classifyEruptionFlash), // 噴火速報
   // VFVO52 (噴火に関する火山観測報) は対象外。
   // 対象火山ブロックを持たず、桜島の日常的な噴火が大半を占めるため。
   // 噴火警戒レベルの変化は VFVO50 で記録される。

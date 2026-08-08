@@ -24,6 +24,18 @@ const alertsOf = (type: string): ClassifiedAlert[] =>
 const posts = (type: string): string[] =>
   groupForPosting(alertsOf(type)).map((group) => formatAlerts(group));
 
+// 同じ種別の別系統 (取消・段階違い) を読む
+const alertsOf2 = (type: string, file: string): ClassifiedAlert[] =>
+  classify(
+    type,
+    parseTelegram(
+      fs.readFileSync(
+        path.join(__dirname, "fixtures/telegrams", file),
+        "utf-8",
+      ),
+    ),
+  );
+
 const graphemes = (text: string) => [...text].length;
 
 const ALL_TYPES = [
@@ -31,11 +43,14 @@ const ALL_TYPES = [
   "VXSE62",
   "VTSE41",
   "VFVO50",
+  "VFVO56",
   "VPWW53",
   "VXWW50",
   "VXKO70",
   "VPHW50",
   "VPOA50",
+  "VYSE50",
+  "VYSE60",
 ];
 
 describe("投稿文の生成", () => {
@@ -218,6 +233,42 @@ describe("投稿文の生成", () => {
     expect(text).toContain("🌋 噴火警報 発表");
     expect(text).toContain("口永良部島");
     expect(text).toContain("レベル２（火口周辺規制）に引上げ");
+  });
+
+  // 噴火速報は噴火警報より先に出る発生の事実の速報。帯で流す
+  it("噴火速報は発生時刻と対象市町村を出す", () => {
+    const [text] = posts("VFVO56");
+    expect(text).toContain("◤◢◤◢◤◢◤◢◤◢◤◢◤◢\n噴火速報");
+    expect(text).toContain("🟣 御嶽山");
+    expect(text).toContain("11:53頃 噴火が発生");
+    expect(text).toContain("長野県王滝村");
+    // 「発表」は重ねない
+    expect(text).not.toContain("噴火速報 発表");
+  });
+
+  it("南海トラフ地震臨時情報は段階つきの見出しで出す", () => {
+    const [text] = posts("VYSE50");
+    expect(text).toContain(
+      "◤◢◤◢◤◢◤◢◤◢◤◢◤◢\n南海トラフ地震臨時情報（巨大地震警戒）",
+    );
+    expect(text).toContain("🟣 南海トラフ地震の想定震源域");
+    expect(text).toContain("防災対応をとってください。");
+    expect(text).toContain("#南海トラフ");
+  });
+
+  // 調査終了は段階が見出しに入っているので「解除」を重ねない
+  it("調査終了に解除を重ねない", () => {
+    const groups = groupForPosting(alertsOf2("VYSE50", "VYSE50-end.xml"));
+    const [text] = formatAlertPosts(groups[0]);
+    expect(text).toContain("▽ 📳 南海トラフ地震臨時情報（調査終了）");
+    expect(text).not.toContain("解除");
+  });
+
+  it("後発地震注意情報はタグを出し分ける", () => {
+    const [text] = posts("VYSE60");
+    expect(text).toContain("北海道・三陸沖後発地震注意情報");
+    expect(text).toContain("#後発地震");
+    expect(text).not.toContain("#南海トラフ");
   });
 
   it("竜巻注意情報は有効期限を出す", () => {
