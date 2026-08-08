@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { eewAlert, eewCancelAlert } from "../src/classify/eew";
 import { EEWParser, type EEWReport } from "../src/core/parser";
+import { formatAlertPosts } from "../src/publisher/message";
 import type { JsonSchema } from "../src/types/eew";
 
 const loadSample = (filename: string) =>
@@ -81,14 +83,18 @@ describe("EEWParser", () => {
 
     // 取消は危険が去った知らせなので、装飾は一番軽い段階に落ちる
     it("取消の文面を組み立てられる", () => {
-      const message = parser.generateCancelMessage();
+      const [message] = formatAlertPosts([eewCancelAlert("20240109012003")]);
       expect(message).toContain("▽ 📳 緊急地震速報 取消");
       expect(message).toContain("取り消されました");
       expect(message).not.toContain("◤◢");
     });
   });
 
-  describe("generateEEWMessage", () => {
+  // 投稿文の組み立て。以前はパーサ自身が文面を作っていたが、
+  // 気象庁フィードと同じ経路 (eewAlert → formatAlertPosts) に統合した。
+  describe("緊急地震速報の投稿文", () => {
+    const messageOf = (report: EEWReport): string =>
+      formatAlertPosts([eewAlert(report)])[0];
     const reportOf = (): EEWReport =>
       (
         parser.parse(loadSample("eew_single..json")) as {
@@ -98,7 +104,7 @@ describe("EEWParser", () => {
       ).report;
 
     it("最終報のメッセージを生成できる", () => {
-      const message = parser.generateEEWMessage(reportOf());
+      const message = messageOf(reportOf());
       expect(message).toContain("緊急地震速報（予報）最終報");
       expect(message).toContain("石川県能登地方");
       expect(message).toContain("🟡 震度3");
@@ -108,7 +114,7 @@ describe("EEWParser", () => {
     });
 
     it("続報は第n報として表示される", () => {
-      const message = parser.generateEEWMessage({
+      const message = messageOf({
         ...reportOf(),
         isLast: false,
         serial: "2",
@@ -119,7 +125,7 @@ describe("EEWParser", () => {
     // 見出しは震度から推測せず電文の isWarning をそのまま使う
     it("警報は帯で囲み、予報はインラインの帯になる", () => {
       const base = reportOf();
-      const warning = parser.generateEEWMessage({
+      const warning = messageOf({
         ...base,
         isWarning: true,
         forecastFrom: "6+",
@@ -131,14 +137,14 @@ describe("EEWParser", () => {
       // 帯を出す段階では絵文字を添えない
       expect(warning).not.toContain("📳");
 
-      const forecast = parser.generateEEWMessage({ ...base, isWarning: false });
+      const forecast = messageOf({ ...base, isWarning: false });
       expect(forecast).toContain("◤◢◤ 📳 緊急地震速報（予報）");
       expect(forecast).not.toContain("◤◢◤◢");
     });
 
     // 震度1〜2の予報も落とさず流す
     it("弱い予報も投稿文になる", () => {
-      const message = parser.generateEEWMessage({
+      const message = messageOf({
         ...reportOf(),
         isWarning: false,
         forecastFrom: "2",
@@ -151,7 +157,7 @@ describe("EEWParser", () => {
     // to = "over" は上限が決まらないことを表す。to だけを見ると
     // 「震度over」と出てしまうため from と組で扱う。
     it("上限が決まらない予想震度は程度以上と出す", () => {
-      const message = parser.generateEEWMessage({
+      const message = messageOf({
         ...reportOf(),
         isWarning: true,
         forecastFrom: "5-",
@@ -163,7 +169,7 @@ describe("EEWParser", () => {
 
     // 予想震度が決まらなくても M3.5 以上の地震として配信する
     it("震度不明でも投稿文になる", () => {
-      const message = parser.generateEEWMessage({
+      const message = messageOf({
         ...reportOf(),
         isWarning: false,
         forecastFrom: "不明",
@@ -177,7 +183,7 @@ describe("EEWParser", () => {
     // 警報は予想最大震度5弱以上で発表される。震度が決まらなくても
     // 警報である事実は確かなので呼びかけは残す。
     it("震度不明の警報でも呼びかける", () => {
-      const message = parser.generateEEWMessage({
+      const message = messageOf({
         ...reportOf(),
         isWarning: true,
         forecastFrom: "不明",
