@@ -14,6 +14,17 @@ const load = (type: string) =>
   );
 
 const run = (type: string): ClassifiedAlert[] => classify(type, load(type));
+// 同じ種別の別系統 (取消・段階違い) を読む
+const runFile = (type: string, file: string): ClassifiedAlert[] =>
+  classify(
+    type,
+    parseTelegram(
+      fs.readFileSync(
+        path.join(__dirname, "fixtures/telegrams", file),
+        "utf-8",
+      ),
+    ),
+  );
 const byKey = (alerts: ClassifiedAlert[], key: string) =>
   alerts.find((a) => a.key === key);
 
@@ -245,5 +256,78 @@ describe("classify", () => {
         }
       }
     });
+  });
+});
+
+// 噴火速報 (VFVO56)。噴火警報より先に出ることがある発生の事実の速報。
+describe("噴火速報 (VFVO56)", () => {
+  const alerts = runFile("VFVO56", "VFVO56.xml");
+
+  it("対象火山1件が emergency で生まれる", () => {
+    expect(alerts).toHaveLength(1);
+    const [a] = alerts;
+    expect(a.hazard).toBe("volcano");
+    expect(a.severity).toBe("emergency");
+    expect(a.state).toBe("active");
+    expect(a.area).toEqual({ name: "御嶽山", code: "312" });
+    expect(a.areaType).toBe("火山");
+  });
+
+  it("発生時刻と対象市町村を持つ", () => {
+    const [a] = alerts;
+    expect(a.detail.infoKind).toBe("噴火速報");
+    expect(a.detail.eventTime).toBe("2014-09-27T11:53:00+09:00");
+    expect(a.detail.municipalities).toEqual([
+      "長野県王滝村",
+      "長野県木曽町",
+      "岐阜県高山市",
+      "岐阜県下呂市",
+    ]);
+  });
+
+  // 取消報は VolcanoInfo を持たないが、取消の事実は流す
+  it("取消報は cancelled になる", () => {
+    const [a] = runFile("VFVO56", "VFVO56-cancel.xml");
+    expect(a.state).toBe("cancelled");
+    expect(a.severity).toBe("info");
+    // 同じ事象は同じキーになり、ステータスが上書きされる
+    expect(a.key).toBe(alerts[0].key);
+  });
+});
+
+// 南海トラフ地震臨時情報 (VYSE50) / 後発地震注意情報 (VYSE60)。
+// 段階は InfoSerial/Code に構造化されている。名前ではなくコードで判定する。
+describe("南海トラフ地震臨時情報・後発地震注意情報", () => {
+  it.each([
+    ["VYSE50.xml", "120", "emergency", "active"], // 巨大地震警戒
+    ["VYSE50-survey.xml", "111", "warning", "active"], // 調査中
+    ["VYSE50-end.xml", "190", "info", "resolved"], // 調査終了
+  ])("%s は code=%s → %s / %s", (file, code, severity, state) => {
+    const [a] = runFile("VYSE50", file);
+    expect(a.hazard).toBe("megaquake");
+    expect(a.detail.stageCode).toBe(code);
+    expect(a.severity).toBe(severity);
+    expect(a.state).toBe(state);
+  });
+
+  // 取消報は InfoSerial を持たない。有無を前提にしない
+  it("取消報は cancelled になる", () => {
+    const [a] = runFile("VYSE50", "VYSE50-cancel.xml");
+    expect(a.state).toBe("cancelled");
+    expect(a.severity).toBe("info");
+  });
+
+  it("後発地震注意情報は段階を持たず emergency", () => {
+    const [a] = runFile("VYSE60", "VYSE60.xml");
+    expect(a.hazard).toBe("megaquake");
+    expect(a.severity).toBe("emergency");
+    expect(a.detail.stageCode).toBeNull();
+    expect(a.area?.name).toBe("日本海溝・千島海溝沿いの想定震源域");
+  });
+
+  it("対象領域は情報の定義から固定で入る", () => {
+    const [a] = runFile("VYSE50", "VYSE50.xml");
+    expect(a.area?.name).toBe("南海トラフ地震の想定震源域");
+    expect(a.areaType).toBe("対象領域");
   });
 });

@@ -34,6 +34,16 @@ const HASHTAG: Record<HazardType, string> = {
   flood: "#洪水",
   tornado: "#竜巻",
   "heavy-rain": "#大雨",
+  megaquake: "#南海トラフ",
+};
+
+// 種別からタグを引く。後発地震注意情報は南海トラフではないため出し分ける。
+const hashtagOf = (alert: ClassifiedAlert): string => {
+  if (alert.hazard === "megaquake") {
+    const kind = detailText(alert, "infoKind") ?? detailText(alert, "title");
+    return kind?.includes("後発地震") ? "#後発地震" : "#南海トラフ";
+  }
+  return HASHTAG[alert.hazard] ?? "";
 };
 
 // 発表と解除を繰り返す情報。見出しにどちらかを添える。
@@ -148,7 +158,13 @@ const alertName = (alert: ClassifiedAlert): string => {
     case "tsunami":
       return (detailText(alert, "kind") ?? "津波情報").replace("解除", "");
     case "volcano":
-      return "噴火警報";
+      // 噴火速報は噴火警報とは別の情報 (発生の事実の速報)
+      return detailText(alert, "infoKind") === "噴火速報"
+        ? "噴火速報"
+        : "噴火警報";
+    case "megaquake":
+      // Head/Title に段階が入る (「南海トラフ地震臨時情報（巨大地震警戒）」)
+      return detailText(alert, "title") ?? "南海トラフ地震臨時情報";
     case "weather":
       return detailText(alert, "kind") ?? "気象警報";
     case "sediment":
@@ -177,9 +193,13 @@ const titleOf = (alert: ClassifiedAlert, name: string): string => {
     const time = hhmm(detailText(alert, "originTime") ?? alert.reportedAt);
     return time === "" ? name : `${name}（${time}）`;
   }
-  if (alert.state === "resolved" || alert.state === "cancelled") {
-    return `${name} 解除`;
+  // 段階が名前に入る情報 (「〜（調査終了）」) や一度きりの速報には
+  // 発表・解除を重ねない。取消だけは誤報だったことが伝わるよう明示する。
+  if (alert.hazard === "megaquake" || name === "噴火速報") {
+    return alert.state === "cancelled" ? `${name} 取消` : name;
   }
+  if (alert.state === "cancelled") return `${name} 取消`;
+  if (alert.state === "resolved") return `${name} 解除`;
   return LIFECYCLE_HAZARDS.includes(alert.hazard) ? `${name} 発表` : name;
 };
 
@@ -207,9 +227,33 @@ const body = (alert: ClassifiedAlert): string[] => {
       break;
     }
     case "volcano": {
+      // 噴火速報は発生の事実だけを伝える。取消は公式の見出し文を使う。
+      if (detailText(alert, "infoKind") === "噴火速報") {
+        if (alert.state === "cancelled") {
+          lines.push(alert.headline);
+          break;
+        }
+        const time = hhmm(detailText(alert, "eventTime"));
+        lines.push(time ? `${time}頃 噴火が発生` : "噴火が発生");
+        const municipalities = alert.detail.municipalities;
+        if (Array.isArray(municipalities) && municipalities.length > 0) {
+          lines.push(areaLine(municipalities as string[], 60));
+        }
+        break;
+      }
       const kind = detailText(alert, "kind");
       const condition = detailText(alert, "condition");
       if (kind) lines.push(condition ? `${kind}に${condition}` : kind);
+      break;
+    }
+    case "megaquake": {
+      // 本文は Head/Headline を使う (Body/Text は解説が数千字あり載らない)。
+      // 取消は見出しに出ているため本文には出さない。
+      if (alert.state === "cancelled") break;
+      const text = detailText(alert, "text");
+      if (text) {
+        lines.push(cutAtSentence(text.replace(/\s+/g, ""), 200));
+      }
       break;
     }
     case "weather": {
@@ -236,6 +280,14 @@ const body = (alert: ClassifiedAlert): string[] => {
     }
   }
   return lines;
+};
+
+// 長文を切り詰める。文の途中で切ると意味が変わるため句点の位置で切る。
+const cutAtSentence = (text: string, max: number): string => {
+  if (graphemes(text) <= max) return text;
+  const cut = [...text].slice(0, max).join("");
+  const index = cut.lastIndexOf("。");
+  return index >= 0 ? cut.slice(0, index + 1) : cut;
 };
 
 // 地域名を並べる。上限を超える場合は件数に置き換える。
@@ -274,7 +326,7 @@ export const formatAlertPosts = (
   const title = titleOf(first, name);
   const head = headline(tier, titleWithEmoji(tier, title, first.hazard));
   const lines = body(first);
-  const hashtag = HASHTAG[first.hazard] ?? "";
+  const hashtag = hashtagOf(first);
 
   const maxInt = detailText(first, "maxInt") ?? "";
   const isEarthquake = first.hazard === "earthquake";

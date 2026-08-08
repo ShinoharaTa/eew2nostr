@@ -128,6 +128,7 @@ const FALLBACK_EMOJI: Record<HazardType, string> = {
   flood: "🌀",
   tornado: "🌪️",
   "heavy-rain": "⛈️",
+  megaquake: "📳",
 };
 
 export const hazardEmoji = (name: string, hazard?: HazardType): string => {
