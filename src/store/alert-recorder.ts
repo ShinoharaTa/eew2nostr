@@ -2,8 +2,8 @@ import { classify } from "../classify/index.js";
 import type { ClassifiedAlert } from "../classify/types.js";
 import type { AlertStatusRecord } from "../core/status.js";
 import { logger } from "../logger.js";
-import type { JmaTelegram } from "../receiver/jma-feed.js";
 import type { Delivery } from "../publisher/delivery.js";
+import type { JmaTelegram } from "../receiver/jma-feed.js";
 import type { Router } from "../routing/router.js";
 import type { StatusManager } from "./status-manager.js";
 
@@ -59,7 +59,18 @@ export class AlertRecorder {
   async record(telegram: JmaTelegram): Promise<number> {
     const alerts = classify(telegram.type, telegram.report);
     if (alerts.length === 0) return 0;
+    const count = await this.recordAlerts(alerts);
+    logger.info("alerts recorded", {
+      type: telegram.type,
+      count,
+      keys: alerts.map((a) => a.key).slice(0, 5),
+    });
+    return count;
+  }
 
+  // 分類済みのイベントを記録して配信する。
+  // 緊急地震速報のように気象庁フィード以外から来る情報もここに合流する。
+  async recordAlerts(alerts: ClassifiedAlert[]): Promise<number> {
     // 同じ電文内で同じキーが複数回現れた場合は、後ろにあるものを最終状態とする
     const latest = new Map<string, ClassifiedAlert>();
     for (const alert of alerts) latest.set(alert.key, alert);
@@ -73,12 +84,6 @@ export class AlertRecorder {
     // 記録を終えてから配信する。投稿が全滅しても記録は残る。
     // 配信判断は直前に記録したレコード (前回の投稿文) を参照する。
     await this.delivery?.deliver([...latest.values()]);
-
-    logger.info("alerts recorded", {
-      type: telegram.type,
-      count: latest.size,
-      keys: [...latest.keys()].slice(0, 5),
-    });
     return latest.size;
   }
 
