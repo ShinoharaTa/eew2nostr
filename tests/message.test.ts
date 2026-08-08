@@ -322,3 +322,63 @@ describe("投稿文の生成", () => {
     });
   });
 });
+
+// 色は severity ではなく警報種別名から決まる (気象庁 表1-1・表1-2)。
+// severity はルーティング用に格上げされていることがあるため、
+// 単体テストではなく投稿文の組み立てまで通して固定する。
+describe("警報種別の色", () => {
+  const alert = (over: Partial<ClassifiedAlert>): ClassifiedAlert => ({
+    key: "x",
+    hazard: "tsunami",
+    kind: "forecast",
+    severity: "emergency",
+    state: "active",
+    headline: "",
+    reportedAt: "2026-08-07T10:00:00+09:00",
+    expiresAt: null,
+    area: { name: "有明・八代海", code: "793" },
+    areaType: "津波予報区",
+    detail: {},
+    ...over,
+  });
+
+  it.each([
+    ["大津波警報", "🟣 有明・八代海"],
+    ["津波警報", "🔴 有明・八代海"],
+  ])("%s は %s", (kind, expected) => {
+    const [text] = formatAlertPosts([alert({ detail: { kind } })]);
+    expect(text).toContain(expected);
+  });
+
+  it("津波注意報は黄になる", () => {
+    const [text] = formatAlertPosts([
+      alert({ severity: "warning", detail: { kind: "津波注意報" } }),
+    ]);
+    expect(text).toContain("🟡 有明・八代海");
+  });
+
+  it("氾濫発生は黒になる", () => {
+    const [text] = formatAlertPosts([
+      alert({
+        hazard: "flood",
+        area: { name: "太平川", code: "8606040001" },
+        areaType: "河川",
+        detail: { kind: "氾濫発生情報" },
+      }),
+    ]);
+    expect(text).toContain("⚫ 太平川");
+  });
+
+  it("噴火警戒レベル3は橙になる", () => {
+    const [text] = formatAlertPosts([
+      alert({
+        hazard: "volcano",
+        severity: "warning",
+        area: { name: "口永良部島", code: "509" },
+        areaType: "火山",
+        detail: { kind: "レベル３（入山規制）" },
+      }),
+    ]);
+    expect(text).toContain("🟠 口永良部島");
+  });
+});

@@ -86,6 +86,43 @@ describe("severityColor", () => {
   it.each(["大雨特別警報", "氾濫発生情報"])("%s は黒", (name) => {
     expect(severityColor("emergency", name)).toBe("⚫");
   });
+
+  // 津波の severity はルーティング用に格上げされている (注意報でも避難行動を
+  // 要するため)。色にそのまま使うと警報が大津波と同じ紫になるので、
+  // 色は種別名から決める (表1-2)
+  it.each([
+    ["大津波警報", "emergency", "🟣"],
+    ["津波警報", "emergency", "🔴"],
+    ["津波注意報", "warning", "🟡"],
+  ] as const)("%s は severity=%s でも %s", (name, severity, color) => {
+    expect(severityColor(severity, name)).toBe(color);
+  });
+
+  // 指定河川洪水予報の段階 (表1-1)
+  it.each([
+    ["氾濫発生情報", "⚫"],
+    ["氾濫危険情報", "🟣"],
+    ["氾濫警戒情報", "🔴"],
+    ["氾濫注意情報", "🟡"],
+  ])("%s → %s", (name, color) => {
+    expect(severityColor("warning", name)).toBe(color);
+  });
+
+  // 噴火警戒レベル (表1-2)。5=避難 4=避難準備 3=入山規制 2=火口周辺規制
+  it.each([
+    ["レベル５（避難）", "🟣"],
+    ["レベル４（避難準備）", "🔴"],
+    ["レベル３（入山規制）", "🟠"],
+    ["レベル２（火口周辺規制）", "🟡"],
+  ])("火山の %s → %s", (name, color) => {
+    expect(severityColor("warning", name, "volcano")).toBe(color);
+  });
+
+  // 「レベル３大雨警報」(R06系) のレベルは警戒レベルで、噴火警戒レベルとは
+  // 意味が違う。火山以外ではレベル表記から色を引かない
+  it("火山以外のレベル表記は severity に従う", () => {
+    expect(severityColor("warning", "レベル３大雨警報")).toBe("🔴");
+  });
 });
 
 describe("tierForSeverity", () => {
