@@ -52,9 +52,32 @@ describe("classify", () => {
         "VXWW50",
         "VPHW50",
         "VPOA50",
-        "VXKO70",
+        "VXKO50-89",
       ]),
     );
+  });
+
+  // 指定河川洪水予報は水系ごとにコードが振られ VXKO(ii=50-89) の40通りある。
+  // 個別列挙だと未観測の水系の氾濫警戒を黙って取りこぼす。
+  describe("指定河川洪水予報のコード範囲", () => {
+    it("VXKO50〜VXKO89 をすべて受ける", () => {
+      for (let ii = 50; ii <= 89; ii++) {
+        expect(isSupported(`VXKO${ii}`)).toBe(true);
+      }
+    });
+
+    it.each(["VXKO49", "VXKO90", "VXKO5", "VXKO700", "VXKOxx"])(
+      "範囲外の %s は受けない",
+      (type) => {
+        expect(isSupported(type)).toBe(false);
+      },
+    );
+
+    it("範囲で受けた種別も分類できる", () => {
+      // 既存 fixture は VXKO70。範囲判定を通って classifyFlood に届くこと
+      expect(run("VXKO70").length).toBeGreaterThan(0);
+      expect(run("VXKO70")[0].hazard).toBe("flood");
+    });
   });
 
   describe("気象警報・注意報 (VPWW53)", () => {

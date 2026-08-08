@@ -356,8 +356,13 @@ export const formatAlertPosts = (
       ];
   // 見出し・本文・注記・タグを除いた残りを地域名に割り当てる。
   // 解除は危険度を示す色を持たないため、地域名だけを出す。
+  // 色は警報種別名 (detail.kind) から引く。alertName は洪水で
+  // 「指定河川洪水予報」のような総称になり、氾濫発生などの段階が落ちるため。
   const resolved = first.state === "resolved" || first.state === "cancelled";
-  const color = resolved ? "" : `${severityColor(first.severity, name)} `;
+  const kindName = detailText(first, "kind") ?? name;
+  const color = resolved
+    ? ""
+    : `${severityColor(first.severity, kindName, first.hazard)} `;
   const fixed = graphemes(assemble(head, "", [...lines, ...suffix], hashtag));
   const listed = areaLine(names, Math.max(0, maxGraphemes - fixed - 2));
   const areas = listed === "" ? "" : `${color}${listed}`;

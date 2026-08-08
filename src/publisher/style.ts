@@ -1,4 +1,5 @@
 import { UNKNOWN_INTENSITY, intensityRank } from "../classify/intensity.js";
+import { levelFromName } from "../classify/severity.js";
 import type { AlertState, HazardType, Severity } from "../classify/types.js";
 
 // 投稿の見た目を決める層。軸は2本あり、それぞれ1つの意味だけを持つ。
@@ -69,13 +70,52 @@ const LEVEL_COLOR: Record<Severity, string> = {
   info: "⚪", // レベル1 (255,255,255)
 };
 
-// レベル5相当だけは黒。Severity は emergency に丸められるため名前で見分ける。
-const LEVEL5_NAMES = ["特別警報", "氾濫発生"];
+// 警報種別ごとの色 (表1-1・表1-2)。長い語を先に置き、
+// 「大津波警報」が「津波警報」に先取りされないようにする。
+//
+// severity から引かないのは、severity がルーティング用に格上げされている
+// ことがあるため (津波は注意報でも避難行動を要するため warning になる)。
+// それを色にそのまま使うと、津波警報が大津波警報と同じ紫になり、
+// 注意報が警報と同じ赤になる。色は気象庁の配色どおり種別名で決める。
+const KIND_COLOR: [string, string][] = [
+  ["特別警報", "⚫"], // レベル5相当 (12,0,12)
+  ["氾濫発生", "⚫"],
+  ["大津波警報", "🟣"], // レベル4相当
+  ["氾濫危険", "🟣"],
+  ["津波警報", "🔴"], // レベル3相当
+  ["氾濫警戒", "🔴"],
+  ["津波注意報", "🟡"], // レベル2相当
+  ["氾濫注意", "🟡"],
+];
 
-export const severityColor = (severity: Severity, name = ""): string =>
-  LEVEL5_NAMES.some((word) => name.includes(word))
-    ? "⚫" // 12,0,12
-    : LEVEL_COLOR[severity];
+// 噴火警戒レベルの色 (表1-2)。5=避難、4=避難準備、3=入山規制、
+// 2=火口周辺規制、1=活火山であることに留意。
+const VOLCANO_LEVEL_COLOR: Record<number, string> = {
+  5: "🟣",
+  4: "🔴",
+  3: "🟠",
+  2: "🟡",
+  1: "⚪",
+};
+
+export const severityColor = (
+  severity: Severity,
+  name = "",
+  hazard?: HazardType,
+): string => {
+  for (const [word, color] of KIND_COLOR) {
+    if (name.includes(word)) return color;
+  }
+  // 「レベル２（火口周辺規制）」のようにレベルが名前に入る。
+  // 気象警報のレベル表記 (R06系) とは意味が違うため火山に限る。
+  if (hazard === "volcano") {
+    const level = levelFromName(name);
+    if (level !== null) {
+      return VOLCANO_LEVEL_COLOR[Math.min(Math.max(level, 1), 5)];
+    }
+  }
+  return LEVEL_COLOR[severity];
+};
 
 // 緊急度から装飾の段階を決める。解除は危険度が下がった状態なので
 // 元の緊急度に関わらず一番軽い段階に落ちる。
