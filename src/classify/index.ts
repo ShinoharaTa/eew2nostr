@@ -1,11 +1,11 @@
 import type { JmaReport } from "../receiver/jma-xml.js";
 import {
   classifyEarthquake,
-  classifyHeavyRain,
   classifyFlood,
+  classifyHeavyRain,
   classifySediment,
-  classifyTsunami,
   classifyTornado,
+  classifyTsunami,
   classifyVolcano,
   classifyWeather,
 } from "./classifiers.js";
@@ -70,18 +70,40 @@ const CLASSIFIERS: Record<string, Handler> = {
   VPHW51: forecast(classifyTornado), // 竜巻注意情報 (目撃情報付き)
 
   VPOA50: observed(classifyHeavyRain), // 記録的短時間大雨情報
-
-  VXKO50: forecast(classifyFlood),
-  VXKO53: forecast(classifyFlood),
-  VXKO54: forecast(classifyFlood),
-  VXKO57: forecast(classifyFlood),
-  VXKO70: forecast(classifyFlood),
 };
 
-export const isSupported = (type: string | null): boolean =>
-  type !== null && type in CLASSIFIERS;
+// 種別コードの下2桁が発表元ごとに変わる電文。範囲で受ける。
+// 指定河川洪水予報は水系ごとにコードが振られ、VXKO(ii=50-89) の40通りある。
+// 個別に列挙すると、実データで観測できていない水系の氾濫警戒を
+// 黙って取りこぼす (気象庁「気象庁防災情報XML一覧表」表1.1)。
+const RANGE_CLASSIFIERS: {
+  prefix: string;
+  range: [number, number];
+  handler: Handler;
+}[] = [{ prefix: "VXKO", range: [50, 89], handler: forecast(classifyFlood) }];
 
-export const supportedTypes = (): string[] => Object.keys(CLASSIFIERS);
+const rangeHandler = (type: string): Handler | null => {
+  for (const { prefix, range, handler } of RANGE_CLASSIFIERS) {
+    if (!type.startsWith(prefix) || type.length !== prefix.length + 2) continue;
+    const suffix = Number(type.slice(prefix.length));
+    if (Number.isInteger(suffix) && suffix >= range[0] && suffix <= range[1])
+      return handler;
+  }
+  return null;
+};
+
+const handlerFor = (type: string): Handler | null =>
+  CLASSIFIERS[type] ?? rangeHandler(type);
+
+export const isSupported = (type: string | null): boolean =>
+  type !== null && handlerFor(type) !== null;
+
+export const supportedTypes = (): string[] => [
+  ...Object.keys(CLASSIFIERS),
+  ...RANGE_CLASSIFIERS.map(
+    ({ prefix, range }) => `${prefix}${range[0]}-${range[1]}`,
+  ),
+];
 
 // 電文1通から0件以上の防災イベントを取り出す。
 // 気象警報は (一次細分区域 × 警報種別) の数だけ生まれる。
@@ -90,7 +112,7 @@ export const classify = (
   report: JmaReport,
 ): ClassifiedAlert[] => {
   if (type === null) return [];
-  const handler = CLASSIFIERS[type];
+  const handler = handlerFor(type);
   if (!handler) return [];
   return handler.classify(report, {
     reportedAt: report.head.reportDateTime,
