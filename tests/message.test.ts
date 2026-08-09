@@ -56,7 +56,7 @@ const ALL_TYPES = [
 describe("投稿文の生成", () => {
   it("地震情報は発生時刻・震源・最大震度を出す", () => {
     const [text] = posts("VXSE53");
-    expect(text).toContain("▽ 📳 地震情報（18:41）");
+    expect(text).toContain("▽ 地震情報（18:41）");
     expect(text).toContain("震源 熊本県天草・芦北地方 / M3.8");
     expect(text).toContain("🟡 震度3");
   });
@@ -220,7 +220,7 @@ describe("投稿文の生成", () => {
 
   it("解除は見出しで分かるようにする", () => {
     const [text] = posts("VTSE41");
-    expect(text).toContain("▽ 🌊 津波注意報 解除");
+    expect(text).toContain("▽ 津波注意報 解除");
     expect(text).toContain("有明・八代海");
     // 見出しに解除を出すので種別名側には残さない
     expect(text).not.toContain("津波注意報解除");
@@ -230,7 +230,7 @@ describe("投稿文の生成", () => {
 
   it("噴火警報はレベルと変化を出す", () => {
     const [text] = posts("VFVO50");
-    expect(text).toContain("🌋 噴火警報 発表");
+    expect(text).toContain("噴火警報 発表");
     expect(text).toContain("口永良部島");
     expect(text).toContain("レベル２（火口周辺規制）に引上げ");
   });
@@ -260,7 +260,7 @@ describe("投稿文の生成", () => {
   it("調査終了に解除を重ねない", () => {
     const groups = groupForPosting(alertsOf2("VYSE50", "VYSE50-end.xml"));
     const [text] = formatAlertPosts(groups[0]);
-    expect(text).toContain("▽ 📳 南海トラフ地震臨時情報（調査終了）");
+    expect(text).toContain("▽ 南海トラフ地震臨時情報（調査終了）");
     expect(text).not.toContain("解除");
   });
 
@@ -273,7 +273,7 @@ describe("投稿文の生成", () => {
 
   it("竜巻注意情報は有効期限を出す", () => {
     const [text] = posts("VPHW50");
-    expect(text).toContain("▽ 🌪️ 竜巻注意情報");
+    expect(text).toContain("▽ 竜巻注意情報");
     expect(text).toMatch(/\d{2}:\d{2}まで有効/);
   });
 
