@@ -48,6 +48,16 @@ describe("matches", () => {
     expect(matches(when, target("weather", "info"))).toBe(false);
   });
 
+  // 専用アカウントを持つ種別が広いルートに重複して乗るのを防ぐ
+  it("hazardNot は列挙した種別を除外する", () => {
+    const when: RouteCondition = {
+      minSeverity: "emergency",
+      hazardNot: ["eew"],
+    };
+    expect(matches(when, target("eew", "emergency"))).toBe(false);
+    expect(matches(when, target("tsunami", "emergency"))).toBe(true);
+  });
+
   it("minSeverity は閾値として効く", () => {
     const when: RouteCondition = { minSeverity: "warning" };
     expect(matches(when, target("weather", "emergency"))).toBe(true);

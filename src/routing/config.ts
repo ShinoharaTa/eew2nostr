@@ -14,6 +14,7 @@ const HAZARDS = new Set([
   "flood",
   "tornado",
   "heavy-rain",
+  "megaquake",
 ]);
 
 const KINDS = new Set(["forecast", "observed", "action"]);
@@ -83,11 +84,15 @@ export const validateRoutingConfig = (raw: unknown): RoutingConfig => {
       );
     }
     const condition = when as Record<string, unknown>;
-    if (condition.hazard !== undefined) {
-      if (!isStringArray(condition.hazard)) {
-        throw new Error(`routes[${index}] の hazard は文字列の配列にします。`);
+    for (const field of ["hazard", "hazardNot"] as const) {
+      const value = condition[field];
+      if (value === undefined) continue;
+      if (!isStringArray(value)) {
+        throw new Error(
+          `routes[${index}] の ${field} は文字列の配列にします。`,
+        );
       }
-      for (const hazard of condition.hazard) {
+      for (const hazard of value) {
         if (!HAZARDS.has(hazard)) {
           throw new Error(
             `routes[${index}] に未知の hazard があります: ${hazard}`,

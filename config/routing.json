@@ -52,11 +52,18 @@
   "routes": [
     { "to": "eew", "when": { "hazard": ["eew"] } },
 
-    { "to": "emergency", "when": { "minSeverity": "emergency" } },
+    {
+      "to": "emergency",
+      "when": { "minSeverity": "emergency", "hazardNot": ["eew"] }
+    },
 
     {
       "to": "warning",
-      "when": { "kind": ["forecast"], "minSeverity": "warning" }
+      "when": {
+        "kind": ["forecast"],
+        "minSeverity": "warning",
+        "hazardNot": ["eew"]
+      }
     },
 
     { "to": "observed", "when": { "kind": ["observed"] } }

@@ -9,15 +9,13 @@ import {
   newCounters,
   startupSummary,
 } from "./notifier/status-report.js";
-import { BskyPublisher } from "./publisher/bsky.js";
-import { ConcrntPublisher } from "./publisher/concrnt.js";
 import {
   buildAccounts,
   disposeAccounts,
   initAccounts,
 } from "./publisher/account.js";
 import { Delivery } from "./publisher/delivery.js";
-import { PublishDispatcher } from "./publisher/dispatcher.js";
+import { EEWPipeline } from "./publisher/eew-pipeline.js";
 import { NostrPublisher } from "./publisher/nostr.js";
 import { DmdataReceiver } from "./receiver/dmdata.js";
 import { SqliteFeedCursorStore } from "./receiver/feed-cursor.js";
@@ -37,10 +35,6 @@ dotenv.config();
 const {
   EEW_TOKEN,
   HEX,
-  BSKY_IDENTIFIER,
-  BSKY_PASSWORD,
-  CONCRNT_SUBKEY,
-  CONCRNT_CHANNEL,
   DISCORD_WEBHOOK_URL,
   STATUS_DB_PATH,
   ROUTING_CONFIG_PATH,
@@ -81,11 +75,9 @@ const main = async () => {
     );
   }
 
+  // 無印の HEX はステータスミラーと生電文の投稿に使う。
+  // SNS への投稿は routing.json のアカウント (HEX_EEW など) が担う。
   const nostr = new NostrPublisher(HEX ?? "", relays);
-  const bsky = new BskyPublisher(BSKY_IDENTIFIER ?? "", BSKY_PASSWORD ?? "");
-  const concrnt = new ConcrntPublisher(CONCRNT_SUBKEY ?? "", CONCRNT_CHANNEL);
-  await bsky.init();
-  await concrnt.init();
 
   const store = new SqliteStatusStore(STATUS_DB_PATH ?? "./data/status.db");
   await store.init();
@@ -95,31 +87,6 @@ const main = async () => {
     new NostrStatusMirror(nostr, statusRelays),
   );
   await status.init();
-
-  const dispatcher = new PublishDispatcher(
-    new EEWParser(),
-    nostr,
-    bsky,
-    concrnt,
-    notifier,
-    status,
-  );
-
-  // 取得層と配信層は内部キューで接続する
-  const queue = new AsyncQueue<JsonSchema>();
-  const consume = async () => {
-    while (true) {
-      const telegram = await queue.pop();
-      counters.receivedDmdata += 1;
-      try {
-        await dispatcher.handle(telegram);
-      } catch (e) {
-        counters.failures += 1;
-        logger.error("failed to dispatch telegram", { err: e });
-      }
-    }
-  };
-  consume();
 
   // 配信先の定義。鍵が未設定の経路は投稿せず、
   // コンソールに出すテストモードとして動く。
@@ -134,6 +101,25 @@ const main = async () => {
   });
 
   const recorder = new AlertRecorder(status, router, delivery);
+
+  // 緊急地震速報も気象庁フィードと同じ記録 → 配信の経路に合流させる。
+  // 取得層と配信層は内部キューで接続する。
+  const pipeline = new EEWPipeline(new EEWParser(), recorder, status, nostr);
+  const queue = new AsyncQueue<JsonSchema>();
+  const consume = async () => {
+    while (true) {
+      const telegram = await queue.pop();
+      counters.receivedDmdata += 1;
+      try {
+        await pipeline.handle(telegram);
+      } catch (e) {
+        counters.failures += 1;
+        logger.error("failed to dispatch telegram", { err: e });
+      }
+    }
+  };
+  consume();
+
   const jmaQueue = new AsyncQueue<JmaTelegram>();
   const consumeJma = async () => {
     while (true) {

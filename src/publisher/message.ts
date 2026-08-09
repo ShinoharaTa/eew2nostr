@@ -2,6 +2,9 @@ import { format, parseISO } from "date-fns";
 import {
   MAX_SPLIT_POSTS,
   MIN_POSTED_INTENSITY,
+  UNKNOWN_INTENSITY,
+  forecastIntensityLabel,
+  forecastIntensityValue,
   intensityLabel,
   intensityRangeLabel,
   intensityRank,
@@ -153,6 +156,8 @@ const detailText = (alert: ClassifiedAlert, key: string): string | null => {
 
 const alertName = (alert: ClassifiedAlert): string => {
   switch (alert.hazard) {
+    case "eew":
+      return "緊急地震速報";
     case "earthquake":
       return "地震情報";
     case "tsunami":
@@ -180,14 +185,36 @@ const alertName = (alert: ClassifiedAlert): string => {
   }
 };
 
-// 装飾の段階。地震は震度、それ以外は緊急度で決める。
-const tierOf = (alert: ClassifiedAlert): Tier =>
-  alert.hazard === "earthquake"
+// 緊急地震速報 (警報) かどうか。予想最大震度5弱以上で発表される。
+// 震度から推測せず電文の isWarning をそのまま使う。
+const isEEWWarning = (alert: ClassifiedAlert): boolean =>
+  alert.detail.isWarning === true;
+
+// 装飾の段階。地震は震度、緊急地震速報は警報かどうか、
+// それ以外は緊急度で決める。
+const tierOf = (alert: ClassifiedAlert): Tier => {
+  if (alert.hazard === "eew") {
+    if (alert.state === "cancelled") return "note";
+    return isEEWWarning(alert) ? "act" : "warn";
+  }
+  return alert.hazard === "earthquake"
     ? tierForIntensity(detailText(alert, "maxInt") ?? "")
     : tierForSeverity(alert.severity, alert.state);
+};
 
 // 見出しの語。状態は記号ではなく言葉で示す。
 const titleOf = (alert: ClassifiedAlert, name: string): string => {
+  if (alert.hazard === "eew") {
+    if (alert.state === "cancelled") return `${name} 取消`;
+    // 見出しは気象庁の公式名称に合わせる
+    const serial =
+      alert.detail.isLast === true
+        ? "最終報"
+        : (detailText(alert, "serial") ?? "") !== ""
+          ? `第${detailText(alert, "serial")}報`
+          : "";
+    return `${name}（${isEEWWarning(alert) ? "警報" : "予報"}）${serial}`;
+  }
   if (alert.hazard === "earthquake") {
     // 震度速報は Earthquake 要素を持たず発生時刻が無いため、発表時刻で代える
     const time = hhmm(detailText(alert, "originTime") ?? alert.reportedAt);
@@ -203,10 +230,46 @@ const titleOf = (alert: ClassifiedAlert, name: string): string => {
   return LIFECYCLE_HAZARDS.includes(alert.hazard) ? `${name} 発表` : name;
 };
 
+// 緊急地震速報の予想震度の from / to。to だけを見ると "over" が表に出る。
+const eewForecastRange = (alert: ClassifiedAlert): [string, string] => [
+  detailText(alert, "forecastFrom") ?? UNKNOWN_INTENSITY,
+  detailText(alert, "forecast") ?? UNKNOWN_INTENSITY,
+];
+
 // 種別ごとの本文。地域名は呼び出し側が組み立てる。
 const body = (alert: ClassifiedAlert): string[] => {
   const lines: string[] = [];
   switch (alert.hazard) {
+    case "eew": {
+      if (alert.state === "cancelled") {
+        lines.push("先ほどの緊急地震速報は取り消されました。");
+        break;
+      }
+      const [from, to] = eewForecastRange(alert);
+      const color = intensityColor(forecastIntensityValue(from, to));
+      const lg = detailText(alert, "forecastLg");
+      lines.push(
+        [
+          `${color ? `${color} ` : ""}${forecastIntensityLabel(from, to)}　${detailText(alert, "place") ?? ""}`,
+          lg && lg !== "0" ? `（長周期地震動階級 ${lg}）` : null,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      // 震源名は震度の行に出ているため繰り返さない
+      const originTime = detailText(alert, "originTime");
+      const magnitude = detailText(alert, "magnitude");
+      const depth = detailText(alert, "depth");
+      const hypocenter = [
+        originTime ? `${hhmm(originTime)}発生` : null,
+        magnitude ? `M${magnitude}` : null,
+        depth === "0" ? "ごく浅い" : depth ? `深さ${depth}km` : null,
+      ]
+        .filter(Boolean)
+        .join(" / ");
+      if (hypocenter !== "") lines.push(hypocenter);
+      break;
+    }
     case "earthquake": {
       // 震度速報 (VXSE51) は Earthquake 要素を持たず震源が分からない。
       // 「震源 不明」と書くより出さないほうが読みやすい。
@@ -330,6 +393,22 @@ export const formatAlertPosts = (
 
   const maxInt = detailText(first, "maxInt") ?? "";
   const isEarthquake = first.hazard === "earthquake";
+  const isEEW = first.hazard === "eew";
+
+  // 揺れへの呼びかけ。緊急地震速報は予想、地震情報は実測なので文言が違う。
+  // 警報は予想最大震度5弱以上で発表されるため、震度が決まらなくても
+  // 警報である事実は確かとして呼びかけは残す。
+  const callToAction = (): string | null => {
+    if (isEarthquake) return shakingCallToAction("observed", maxInt);
+    if (isEEW && first.state !== "cancelled") {
+      const value = forecastIntensityValue(...eewForecastRange(first));
+      return (
+        shakingCallToAction("forecast", value) ??
+        (isEEWWarning(first) ? "強い揺れに注意してください。" : null)
+      );
+    }
+    return null;
+  };
 
   // 長周期地震動階級は震度に付与される情報なので、震度の並びの後に置く。
   const lgInt = detailText(first, "maxLgInt");
@@ -337,23 +416,24 @@ export const formatAlertPosts = (
     isEarthquake && lgInt && lgInt !== "0"
       ? `（長周期地震動階級 ${lgInt}）`
       : null,
-    isEarthquake ? shakingCallToAction("observed", maxInt) : null,
+    callToAction(),
   ].filter((part): part is string => part !== null);
 
   // 全国に配信するため、地域名には都道府県名を含める。
   // 気象庁の地域コードは先頭2桁が都道府県コードになっている。
   // 地震の area は震央地名で、震源の行に出るためここでは扱わない。
-  const names = isEarthquake
-    ? []
-    : [
-        ...new Set(
-          alerts
-            .map((a) =>
-              a.area ? withPrefecture(a.area.name, a.area.code) : "",
-            )
-            .filter(Boolean),
-        ),
-      ];
+  const names =
+    isEarthquake || isEEW
+      ? []
+      : [
+          ...new Set(
+            alerts
+              .map((a) =>
+                a.area ? withPrefecture(a.area.name, a.area.code) : "",
+              )
+              .filter(Boolean),
+          ),
+        ];
   // 見出し・本文・注記・タグを除いた残りを地域名に割り当てる。
   // 解除は危険度を示す色を持たないため、地域名だけを出す。
   // 色は警報種別名 (detail.kind) から引く。alertName は洪水で

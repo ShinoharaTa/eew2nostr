@@ -30,6 +30,7 @@ export const matches = (
   if (!condition) return true;
   if (condition.hazard && !condition.hazard.includes(target.hazard))
     return false;
+  if (condition.hazardNot?.includes(target.hazard)) return false;
   if (condition.kind && !condition.kind.includes(target.kind)) return false;
   if (
     condition.minSeverity &&

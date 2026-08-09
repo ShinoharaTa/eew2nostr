@@ -29,6 +29,9 @@ export interface AccountConfig {
 // (Nostr のフィルタと同じ意味論)。空オブジェクトは全件にマッチする。
 export interface RouteCondition {
   hazard?: HazardType[];
+  // この種別は除外する。緊急地震速報のように専用アカウントを持つ種別が、
+  // minSeverity だけの広いルートに重複して乗るのを防ぐ。
+  hazardNot?: HazardType[];
   // 情報の性質。予測系だけ / 実測だけ を分けるのに使う。
   kind?: AlertKind[];
   // この緊急度以上にマッチする。severity は順序を持つため閾値で書ける。
