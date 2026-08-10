@@ -19,6 +19,45 @@ export const STATUS_LABEL_NAMESPACE = "jp.shino3.bosai.status";
 // 「発表中かつ人命に関わるもの」を絞り込めなくなるため。
 export const SEVERITY_TAG = "s";
 
+// content の公開スキーマ識別子。別プロジェクトが参照する際の契約。
+// フィールドの追加は後方互換とみなし版を上げない。
+// 削除・意味変更をする場合は末尾の版番号を上げる。
+export const STATUS_SCHEMA = "jp.shino3.bosai.status/1";
+
+// 外部公開する形。内部レコードから配信管理用のフィールド
+// (posts / deliveries / lastPostText / revision) を落とす。
+// 内部実装の変更が外部への契約に漏れないよう、明示的に詰め替える。
+export interface PublicStatus {
+  schema: string;
+  key: string;
+  hazard: string;
+  kind: string;
+  severity: string;
+  status: string;
+  headline: string;
+  publishedAt: string;
+  updatedAt: string;
+  expiresAt: string | null;
+  area: { name: string; code: string; type: string | null } | null;
+  // 種別ごとの構造化データ。中身は docs/status-events.md に定義する。
+  detail: Record<string, unknown>;
+}
+
+export const toPublicStatus = (record: AlertStatusRecord): PublicStatus => ({
+  schema: STATUS_SCHEMA,
+  key: record.key,
+  hazard: record.category,
+  kind: record.kind,
+  severity: record.severity,
+  status: record.status,
+  headline: record.headline,
+  publishedAt: record.publishedAt,
+  updatedAt: record.updatedAt,
+  expiresAt: record.expiresAt,
+  area: record.area ? { ...record.area, type: record.areaType ?? null } : null,
+  detail: record.detail,
+});
+
 export interface ReplaceablePublisherPort {
   publishReplaceable(params: {
     kind: number;
@@ -55,7 +94,7 @@ export class NostrStatusMirror implements StatusMirror {
         ["l", record.status, STATUS_LABEL_NAMESPACE],
         [SEVERITY_TAG, record.severity],
       ],
-      content: JSON.stringify(record),
+      content: JSON.stringify(toPublicStatus(record)),
       createdAt: this.nextCreatedAt(record.key),
       relays: this.relays,
     });
