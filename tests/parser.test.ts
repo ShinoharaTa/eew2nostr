@@ -84,7 +84,7 @@ describe("EEWParser", () => {
     // 取消は危険が去った知らせなので、装飾は一番軽い段階に落ちる
     it("取消の文面を組み立てられる", () => {
       const [message] = formatAlertPosts([eewCancelAlert("20240109012003")]);
-      expect(message).toContain("▽ 📳 緊急地震速報 取消");
+      expect(message).toContain("▽ 緊急地震速報 取消");
       expect(message).toContain("取り消されました");
       expect(message).not.toContain("◤◢");
     });
@@ -138,7 +138,7 @@ describe("EEWParser", () => {
       expect(warning).not.toContain("📳");
 
       const forecast = messageOf({ ...base, isWarning: false });
-      expect(forecast).toContain("◤◢◤ 📳 緊急地震速報（予報）");
+      expect(forecast).toContain("◤◢◤ 緊急地震速報（予報）");
       expect(forecast).not.toContain("◤◢◤◢");
     });
 

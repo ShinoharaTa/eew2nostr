@@ -1,12 +1,10 @@
 import {
-  hazardEmoji,
   headline,
   intensityColor,
   severityColor,
   shakingCallToAction,
   tierForIntensity,
   tierForSeverity,
-  titleWithEmoji,
 } from "../src/publisher/style";
 
 describe("headline", () => {
@@ -17,11 +15,11 @@ describe("headline", () => {
   });
 
   it("警報級はインラインの帯で挟む", () => {
-    expect(headline("warn", "🌧️ 大雨警報 発表")).toBe("◤◢◤ 🌧️ 大雨警報 発表 ◢◤◢");
+    expect(headline("warn", "大雨警報 発表")).toBe("◤◢◤ 大雨警報 発表 ◢◤◢");
   });
 
   it("注意報級は1行", () => {
-    expect(headline("note", "⚡ 雷注意報 発表")).toBe("▽ ⚡ 雷注意報 発表");
+    expect(headline("note", "雷注意報 発表")).toBe("▽ 雷注意報 発表");
   });
 
   // 読み上げ対策でスラッシュを使わないことを固定する
@@ -141,50 +139,6 @@ describe("tierForSeverity", () => {
   // 解除は危険度が下がった状態なので、元の緊急度に関わらず一番軽くなる
   it.each(["resolved", "cancelled"] as const)("%s は1行に落ちる", (state) => {
     expect(tierForSeverity("emergency", state)).toBe("note");
-  });
-});
-
-describe("hazardEmoji", () => {
-  it.each([
-    ["津波警報", "🌊"],
-    ["大津波警報", "🌊"],
-    ["噴火警報", "🌋"],
-    ["土砂災害警戒情報", "⛰️"],
-    ["指定河川洪水予報", "🌀"],
-    ["雷注意報", "⚡"],
-    ["竜巻注意情報", "🌪️"],
-    ["大雨警報", "🌧️"],
-    ["暴風警報", "💨"],
-    ["大雪警報", "❄️"],
-    ["地震情報", "📳"],
-  ])("%s → %s", (name, emoji) => {
-    expect(hazardEmoji(name)).toBe(emoji);
-  });
-
-  // 「記録的短時間大雨情報」が「大雨」に先取りされないこと
-  it("記録的短時間大雨情報は雷雨の絵文字", () => {
-    expect(hazardEmoji("記録的短時間大雨情報")).toBe("⛈️");
-  });
-
-  // 「暴風雪警報」が「暴風」に先取りされないこと
-  it("暴風雪警報は雪の絵文字", () => {
-    expect(hazardEmoji("暴風雪警報")).toBe("🌨️");
-  });
-
-  it("名前で引けなければ種別の既定値を使う", () => {
-    expect(hazardEmoji("不明な情報", "tsunami")).toBe("🌊");
-    expect(hazardEmoji("不明な情報")).toBe("");
-  });
-});
-
-describe("titleWithEmoji", () => {
-  // 帯と色に絞ったほうが強く出るため、第1段階では絵文字を出さない
-  it("命を守る段階は絵文字を付けない", () => {
-    expect(titleWithEmoji("act", "大津波警報 発表")).toBe("大津波警報 発表");
-  });
-
-  it.each(["warn", "note"] as const)("%s は絵文字を付ける", (tier) => {
-    expect(titleWithEmoji(tier, "雷注意報 発表")).toBe("⚡ 雷注意報 発表");
   });
 });
 

@@ -129,62 +129,6 @@ export const tierForSeverity = (
   return "note";
 };
 
-// 現象の絵文字。名前に含まれる語で引く。
-// 長い語を先に置き、「記録的短時間大雨」が「大雨」に先取りされないようにする。
-const HAZARD_EMOJI: [string, string][] = [
-  ["記録的短時間大雨", "⛈️"],
-  ["緊急地震速報", "📳"],
-  ["土砂災害", "⛰️"],
-  ["暴風雪", "🌨️"],
-  ["津波", "🌊"],
-  ["高潮", "🌊"],
-  ["噴火", "🌋"],
-  ["洪水", "🌀"],
-  ["氾濫", "🌀"],
-  ["波浪", "〰️"],
-  ["竜巻", "🌪️"],
-  ["大雨", "🌧️"],
-  ["暴風", "💨"],
-  ["強風", "💨"],
-  ["大雪", "❄️"],
-  ["着雪", "❄️"],
-  ["なだれ", "🏔️"],
-  ["融雪", "💧"],
-  ["低温", "🥶"],
-  ["乾燥", "🔥"],
-  ["濃霧", "🌫️"],
-  ["雷", "⚡"],
-  ["地震", "📳"],
-];
-
-// 名前で引けなかったときの種別ごとの既定値。
-const FALLBACK_EMOJI: Record<HazardType, string> = {
-  eew: "📳",
-  earthquake: "📳",
-  tsunami: "🌊",
-  volcano: "🌋",
-  weather: "🌧️",
-  sediment: "⛰️",
-  flood: "🌀",
-  tornado: "🌪️",
-  "heavy-rain": "⛈️",
-  megaquake: "📳",
-};
-
-export const hazardEmoji = (name: string, hazard?: HazardType): string => {
-  const matched = HAZARD_EMOJI.find(([word]) => name.includes(word));
-  if (matched) return matched[1];
-  return hazard ? (FALLBACK_EMOJI[hazard] ?? "") : "";
-};
-
-// 見出しの語。第1段階は帯と色で緊急度を示すため絵文字を出さない。
-// 記号を減らしたほうが帯が強く出る。
-export const titleWithEmoji = (
-  tier: Tier,
-  name: string,
-  hazard?: HazardType,
-): string => (tier === "act" ? name : `${hazardEmoji(name, hazard)} ${name}`);
-
 // 揺れへの呼びかけ。予測と実測では時制が違う。
 // 地震情報は既に揺れた後なので「警戒してください」は使えない。
 export const shakingCallToAction = (

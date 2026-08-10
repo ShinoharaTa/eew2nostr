@@ -20,7 +20,6 @@ import {
   shakingCallToAction,
   tierForIntensity,
   tierForSeverity,
-  titleWithEmoji,
 } from "./style.js";
 
 // Bluesky は 300 グラフェムが上限。地域を並べると容易に超えるため、
@@ -387,7 +386,7 @@ export const formatAlertPosts = (
   const name = alertName(first);
   const tier = tierOf(first);
   const title = titleOf(first, name);
-  const head = headline(tier, titleWithEmoji(tier, title, first.hazard));
+  const head = headline(tier, title);
   const lines = body(first);
   const hashtag = hashtagOf(first);
 
@@ -454,18 +453,21 @@ export const formatAlertPosts = (
   const groups = observedGroups(first).filter(
     (g) => intensityRank(g.intensity) >= intensityRank(MIN_POSTED_INTENSITY),
   );
-  if (groups.length === 0) return [base];
+  if (groups.length === 0) {
+    // 震度1〜2の地域リストは載せないが、最大震度そのものは判断材料なので
+    // 落とさない。ここを消すと最大震度2以下の地震で震度が全く出なくなる。
+    if (isEarthquake && maxInt !== "") {
+      const color = intensityColor(maxInt);
+      const line = `${color ? `${color} ` : ""}最大震度${intensityLabel(maxInt)}`;
+      return [assemble(head, areas, [...lines, line, ...suffix], hashtag)];
+    }
+    return [base];
+  }
 
   const build = (selected: ObservedGroup[], label: string): string | null => {
     if (selected.length === 0) return null;
     // 分割したときだけ、その投稿が扱う震度の範囲を見出しに出す
-    const splitHead =
-      label === ""
-        ? head
-        : headline(
-            tier,
-            titleWithEmoji(tier, `${title} ${label}`, first.hazard),
-          );
+    const splitHead = label === "" ? head : headline(tier, `${title} ${label}`);
     const used = graphemes(
       assemble(splitHead, areas, [...lines, ...suffix], hashtag),
     );
@@ -486,10 +488,7 @@ export const formatAlertPosts = (
   // 分割時は範囲の見出しが加わるため、その分を見込んでおく。
   const overhead = graphemes(
     assemble(
-      headline(
-        tier,
-        titleWithEmoji(tier, `${title} 震度6強〜5弱`, first.hazard),
-      ),
+      headline(tier, `${title} 震度6強〜5弱`),
       areas,
       [...lines, ...suffix],
       hashtag,
