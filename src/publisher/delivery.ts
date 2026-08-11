@@ -5,16 +5,40 @@ import { logger } from "../logger.js";
 import type { NotifierPort } from "../notifier/notifier.js";
 import type { Router } from "../routing/router.js";
 import type { StatusManager } from "../store/status-manager.js";
-import { SNS_NAMES, type AccountClients, type SnsName } from "./account.js";
+import { type AccountClients, SNS_NAMES, type SnsName } from "./account.js";
 import { formatAlertPosts, groupForPosting } from "./message.js";
 
 export type { NotifierPort } from "../notifier/notifier.js";
 
 // 1回の投稿で使うスレッドの位置。
+// Bluesky は reply の参照に uri と cid (コンテンツハッシュ) の両方を
+// 要求するため、識別子とは別に cid も持ち回る。
 interface Thread {
   root: string | null;
   parent: string | null;
+  rootCid: string | null;
+  parentCid: string | null;
 }
+
+// 投稿1件の結果。cid は Bluesky 以外では null。
+interface Posted {
+  root: string;
+  parent: string;
+  rootCid: string | null;
+  parentCid: string | null;
+}
+
+const EMPTY_THREAD: Thread = {
+  root: null,
+  parent: null,
+  rootCid: null,
+  parentCid: null,
+};
+
+// cid の欄に URI が入っていないか。過去の不具合で "at://…" が保存されて
+// いることがあり、壊れた参照で繋ぐと返信が失敗し続ける。
+const isValidCid = (cid: string | undefined): cid is string =>
+  cid !== undefined && cid !== "" && !cid.includes("://");
 
 // 配信層。分類結果をルーティングし、アカウントごとに投稿する。
 //
@@ -148,7 +172,12 @@ export class Delivery {
       if (posted === null) return;
       this.onDelivered?.();
       // 分割された投稿は必ず前の投稿へ繋ぐ
-      thread = { root: thread.root ?? posted.root, parent: posted.parent };
+      thread = {
+        root: thread.root ?? posted.root,
+        parent: posted.parent,
+        rootCid: thread.rootCid ?? posted.rootCid,
+        parentCid: posted.parentCid,
+      };
       if (threadKey) {
         await this.status.update(threadKey, (record) => {
           record.deliveries[account.key] = merge(
@@ -166,7 +195,7 @@ export class Delivery {
     sns: SnsName,
     content: string,
     thread: Thread,
-  ): Promise<{ root: string; parent: string } | null> {
+  ): Promise<Posted | null> {
     if (sns === "nostr" && account.nostr) {
       const id = await account.nostr.publishNote({
         content,
@@ -175,19 +204,29 @@ export class Delivery {
           ? { root: thread.root, parent: thread.parent }
           : undefined,
       });
-      return { root: thread.root ?? id, parent: id };
+      return {
+        root: thread.root ?? id,
+        parent: id,
+        rootCid: null,
+        parentCid: null,
+      };
     }
     if (sns === "bluesky" && account.bluesky) {
       const ref = await account.bluesky.publish(
         content,
-        thread.root && thread.parent
+        thread.root && thread.parent && thread.rootCid && thread.parentCid
           ? {
-              root: { uri: thread.root, cid: thread.root },
-              parent: { uri: thread.parent, cid: thread.parent },
+              root: { uri: thread.root, cid: thread.rootCid },
+              parent: { uri: thread.parent, cid: thread.parentCid },
             }
           : undefined,
       );
-      return { root: thread.root ?? ref.uri, parent: ref.uri };
+      return {
+        root: thread.root ?? ref.uri,
+        parent: ref.uri,
+        rootCid: thread.rootCid ?? ref.cid,
+        parentCid: ref.cid,
+      };
     }
     if (sns === "concrnt" && account.concrnt) {
       const result = await account.concrnt.publish(
@@ -195,41 +234,62 @@ export class Delivery {
         thread.root ? { root: thread.root } : undefined,
       );
       const id = result?.id ?? thread.parent;
-      return id ? { root: thread.root ?? id, parent: id } : null;
+      return id
+        ? {
+            root: thread.root ?? id,
+            parent: id,
+            rootCid: null,
+            parentCid: null,
+          }
+        : null;
     }
     return null;
   }
 }
 
 const toThread = (sns: SnsName, posts: AlertPosts | undefined): Thread => {
-  if (!posts) return { root: null, parent: null };
+  if (!posts) return EMPTY_THREAD;
   if (sns === "nostr" && posts.nostr) {
     return {
+      ...EMPTY_THREAD,
       root: posts.nostr.root,
       parent: posts.nostr.parent ?? posts.nostr.root,
     };
   }
   if (sns === "bluesky" && posts.bluesky) {
-    return { root: posts.bluesky.root.uri, parent: posts.bluesky.parent.uri };
+    const { root, parent } = posts.bluesky;
+    // 壊れた参照 (cid に URI が入っている) はスレッドを新規に立て直す
+    if (!isValidCid(root.cid) || !isValidCid(parent.cid)) return EMPTY_THREAD;
+    return {
+      root: root.uri,
+      parent: parent.uri,
+      rootCid: root.cid,
+      parentCid: parent.cid,
+    };
   }
   if (sns === "concrnt" && posts.concrnt) {
-    return { root: posts.concrnt.root, parent: posts.concrnt.root };
+    return {
+      ...EMPTY_THREAD,
+      root: posts.concrnt.root,
+      parent: posts.concrnt.root,
+    };
   }
-  return { root: null, parent: null };
+  return EMPTY_THREAD;
 };
 
 const merge = (
   posts: AlertPosts | undefined,
   sns: SnsName,
-  posted: { root: string; parent: string },
+  posted: Posted,
 ): AlertPosts => {
   const next: AlertPosts = { ...(posts ?? {}) };
   if (sns === "nostr")
     next.nostr = { root: posted.root, parent: posted.parent };
-  if (sns === "bluesky")
+  // Bluesky は返信時に本物の cid が要るため、投稿結果の cid をそのまま保存する
+  if (sns === "bluesky" && posted.rootCid && posted.parentCid)
     next.bluesky = {
-      root: { uri: posted.root, cid: posted.root },
-      parent: { uri: posted.parent, cid: posted.parent },
+      root: { uri: posted.root, cid: posted.rootCid },
+      parent: { uri: posted.parent, cid: posted.parentCid },
     };
   if (sns === "concrnt") next.concrnt = { root: posted.root };
   return next;
