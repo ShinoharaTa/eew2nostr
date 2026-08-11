@@ -223,6 +223,160 @@ describe("Delivery", () => {
     expect(notifier.notify).toHaveBeenCalled();
   });
 
+  // Bluesky は reply の参照に uri と cid の両方を要求する。
+  // cid の欄に URI を入れると Invalid CID string で返信が失敗する。
+  describe("Bluesky のスレッド", () => {
+    const bskyAccount = (key: string) => {
+      let count = 0;
+      const publish = jest.fn().mockImplementation(async () => {
+        count += 1;
+        return {
+          uri: `at://did:plc:example/app.bsky.feed.post/${count}`,
+          cid: `bafyreicid${count}`,
+        };
+      });
+      const clients = {
+        key,
+        label: key,
+        nostr: null,
+        bluesky: { publish } as unknown,
+        concrnt: null,
+      } as AccountClients;
+      return { clients, publish };
+    };
+
+    it("分割投稿の返信に本物の cid を使う", async () => {
+      const observed = bskyAccount("observed");
+      const { delivery } = await newDelivery(
+        new Map([["observed", observed.clients]]),
+      );
+      const [alert] = alertsOf("VXSE62");
+      const many = (n: number) =>
+        Array.from({ length: n }, (_, i) => `${i}県北部`);
+      await delivery.deliver([
+        {
+          ...alert,
+          detail: {
+            ...alert.detail,
+            observed: [
+              { intensity: "7", names: many(20) },
+              { intensity: "4", names: many(30) },
+              { intensity: "3", names: many(30) },
+            ],
+          },
+        },
+      ]);
+      await delivery.flush();
+
+      expect(observed.publish.mock.calls.length).toBeGreaterThan(1);
+      const reply = observed.publish.mock.calls[1][1];
+      expect(reply.root).toEqual({
+        uri: "at://did:plc:example/app.bsky.feed.post/1",
+        cid: "bafyreicid1",
+      });
+      expect(reply.root.cid).not.toContain("at://");
+    });
+
+    it("続報は保存された本物の cid で繋がる", async () => {
+      const observed = bskyAccount("observed");
+      const { delivery, status } = await newDelivery(
+        new Map([["observed", observed.clients]]),
+      );
+      const alerts = alertsOf("VXSE53");
+      // 本番では AlertRecorder が配信前に upsert する
+      await status.upsert(
+        {
+          key: alerts[0].key,
+          category: "earthquake",
+          kind: "observed",
+          severity: "info",
+          status: "active",
+          publishedAt: alerts[0].reportedAt,
+          updatedAt: alerts[0].reportedAt,
+          expiresAt: null,
+          serial: null,
+          headline: alerts[0].headline,
+          area: alerts[0].area,
+          areaType: alerts[0].areaType,
+          detail: {},
+          posts: {},
+          deliveries: {},
+          lastPostText: null,
+          revision: 0,
+        },
+        () => {},
+      );
+      await delivery.deliver(alerts);
+      await delivery.flush();
+
+      // 保存された参照に本物の cid が入っていること
+      const stored = status.get(alerts[0].key)?.deliveries?.observed?.bluesky;
+      expect(stored?.root.cid).toBe("bafyreicid1");
+
+      // 続報 (文面が変わる) が保存された参照へ繋がること
+      await delivery.deliver(
+        alerts.map((a) => ({
+          ...a,
+          detail: { ...a.detail, magnitude: "4.2" },
+        })),
+      );
+      await delivery.flush();
+
+      const reply = observed.publish.mock.calls[1][1];
+      expect(reply.root.cid).toBe("bafyreicid1");
+    });
+
+    // 過去の不具合で cid の欄に URI が保存されていることがある。
+    // 壊れた参照で繋ぐと返信が失敗し続けるため、新規スレッドを立て直す
+    it("壊れた保存済み参照は使わず新規スレッドにする", async () => {
+      const observed = bskyAccount("observed");
+      const { delivery, status } = await newDelivery(
+        new Map([["observed", observed.clients]]),
+      );
+      const alerts = alertsOf("VXSE53");
+      const brokenUri = "at://did:plc:example/app.bsky.feed.post/old";
+      await status.upsert(
+        {
+          key: alerts[0].key,
+          category: "earthquake",
+          kind: "observed",
+          severity: "info",
+          status: "active",
+          publishedAt: alerts[0].reportedAt,
+          updatedAt: alerts[0].reportedAt,
+          expiresAt: null,
+          serial: null,
+          headline: alerts[0].headline,
+          area: alerts[0].area,
+          areaType: alerts[0].areaType,
+          detail: {},
+          posts: {},
+          deliveries: {
+            observed: {
+              bluesky: {
+                root: { uri: brokenUri, cid: brokenUri },
+                parent: { uri: brokenUri, cid: brokenUri },
+              },
+            },
+          },
+          lastPostText: null,
+          revision: 0,
+        },
+        () => {},
+      );
+
+      await delivery.deliver(alerts);
+      await delivery.flush();
+
+      // reply を付けずに投稿し直す
+      expect(observed.publish).toHaveBeenCalledTimes(1);
+      expect(observed.publish.mock.calls[0][1]).toBeUndefined();
+      // 保存も本物の cid で上書きされる
+      const stored = status.get(alerts[0].key)?.deliveries?.observed?.bluesky;
+      expect(stored?.root.cid).toBe("bafyreicid1");
+    });
+  });
+
   // VPWW53 は県内のどこかで別の警報が動くたびに再発表され、変化していない
   // 警報も「継続」で毎回載ってくる。同じ文面を繰り返し投稿しない。
   describe("同一文面の抑制", () => {
