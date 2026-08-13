@@ -52,6 +52,7 @@ describe("classify", () => {
         "VXWW50",
         "VPHW50",
         "VPOA50",
+        "VPBS50",
         "VXKO50-89",
       ]),
     );
@@ -238,6 +239,55 @@ describe("classify", () => {
     });
   });
 
+  describe("線状降水帯 (VPBS50 府県気象防災速報)", () => {
+    const alerts = run("VPBS50");
+
+    it("対象の細分区域ごとに1件、emergency として記録する", () => {
+      // 実物の電文は千葉県の北西部と南部の2区域に出ている
+      expect(alerts).toHaveLength(2);
+      for (const a of alerts) {
+        expect(a.hazard).toBe("heavy-rain");
+        expect(a.kind).toBe("observed");
+        // 線状降水帯は災害切迫
+        expect(a.severity).toBe("emergency");
+        expect(a.state).toBe("active");
+        expect(a.areaType).toBe("一次細分区域");
+      }
+    });
+
+    it("地域名に都道府県を補う", () => {
+      // 「北西部」だけでは他県と区別できない
+      expect(alerts.map((a) => a.headline)).toEqual([
+        "千葉県北西部に線状降水帯発生",
+        "千葉県南部に線状降水帯発生",
+      ]);
+    });
+
+    it("キーを地域と EventID で分ける", () => {
+      const keys = alerts.map((a) => a.key);
+      expect(new Set(keys).size).toBe(keys.length);
+      for (const k of keys) expect(k).toMatch(/^heavy-rain-band:\d{6}:/);
+    });
+
+    it("発生の事実を detail に構造化して持つ", () => {
+      const a = alerts[0];
+      expect(a.detail.event).toBe("線状降水帯発生");
+      expect(a.detail.eventType).toBe("線状降水帯");
+      expect(a.detail.time).toBe("2026-08-13T17:50:00+09:00");
+    });
+
+    it("知らない Event type は捨てる", () => {
+      // ホワイトリスト方式。何でも投稿すると量が読めない
+      const xml = fs
+        .readFileSync(
+          path.join(__dirname, "fixtures/telegrams", "VPBS50.xml"),
+          "utf-8",
+        )
+        .replace(/type="線状降水帯"/g, 'type="未知の現象"');
+      expect(classify("VPBS50", parseTelegram(xml))).toEqual([]);
+    });
+  });
+
   describe("指定河川洪水予報 (VXKO70)", () => {
     const alerts = run("VXKO70");
 
@@ -264,6 +314,7 @@ describe("classify", () => {
         "VFVO50",
         "VPHW50",
         "VPOA50",
+        "VPBS50",
         "VXKO70",
       ]) {
         for (const a of run(type)) {

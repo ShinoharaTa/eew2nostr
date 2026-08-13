@@ -178,7 +178,11 @@ const alertName = (alert: ClassifiedAlert): string => {
     case "tornado":
       return "竜巻注意情報";
     case "heavy-rain":
-      return "記録的短時間大雨情報";
+      // 線状降水帯は記録的短時間大雨情報とは別の情報。
+      // どちらも hazard は heavy-rain なので detail で見分ける
+      return detailText(alert, "eventType") === "線状降水帯"
+        ? (detailText(alert, "event") ?? "線状降水帯発生")
+        : "記録的短時間大雨情報";
     default:
       return "防災情報";
   }
