@@ -29,6 +29,7 @@
 | 気象特別警報・警報・注意報 | VPWW53 | `classifyWeather` | emergency / warning |
 | 土砂災害警戒情報 | VXWW50 | `classifySediment` | emergency |
 | 記録的短時間大雨情報 | VPOA50 | `classifyHeavyRain` | observed |
+| 線状降水帯（府県気象防災速報） | VPBS50 | `classifyHeavyRainBand` | observed |
 | 竜巻注意情報 | VPHW50 / VPHW51 | `classifyTornado` | warning |
 | 指定河川洪水予報 | VXKO50 / 53 / 54 / 57 / 70 | `classifyFlood` | warning |
 
@@ -59,7 +60,7 @@
 | B | 噴火速報が未対応 | **高** | 小 |
 | C | 南海トラフ地震臨時情報・後発地震注意情報が未対応 | **高** | 中 |
 | D | 沖合の津波観測に関する情報が未対応 | 中 | 中 |
-| E | 線状降水帯（府県気象防災速報）が未対応 | 中 | 中 |
+| ~~E~~ | ~~線状降水帯（府県気象防災速報）が未対応~~ **対応済み (#60)** | 中 | 中 |
 | F | 火山の状況に関する解説情報・降灰予報が未対応 | 低 | 中 |
 | G | 令和10年度の廃止に伴う R06系への移行 | **期限あり** | 大 |
 
@@ -445,7 +446,14 @@ VFVO56: observed(classifyEruptionFlash), // 噴火速報
 
 ---
 
-## 7. 課題E: 線状降水帯 (VPBS50 府県気象防災速報)
+## 7. 課題E: 線状降水帯 (VPBS50 府県気象防災速報) — 対応済み (#60)
+
+> 2026-08-13 に実装した。実物の電文（千葉県・線状降水帯発生）を
+> `tests/fixtures/telegrams/VPBS50.xml` に固定してテストしている。
+>
+> 実装時に1点追加で直した。`alertName()` は `hazard: "heavy-rain"` を
+> 一律「記録的短時間大雨情報」にしていたため、線状降水帯の投稿が
+> その名前で出てしまっていた。`detail.eventType` で見分けるようにした。
 
 ### なぜ要るか
 

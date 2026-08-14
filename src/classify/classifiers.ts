@@ -12,6 +12,7 @@ import type {
   ClassifiedAlert,
   Severity,
 } from "./types.js";
+import { withPrefecture } from "./prefecture.js";
 import {
   type Node as XmlNode,
   area,
@@ -526,4 +527,59 @@ export const classifyMegaquake = (
       },
     },
   ];
+};
+
+// 線状降水帯 (VPBS50 府県気象防災速報)。
+//
+// 記録的短時間大雨情報と並ぶ、大雨災害の直前シグナル。
+// 発生の事実が Event として構造化されているので、発表文の解析は要らない。
+//
+// 扱う Event type はホワイトリストにする。配布サンプルではすべて「線状降水帯」
+// だったが、今後 type が増える可能性がある。知らない type は捨てる。
+// 何でも投稿すると量が読めない。
+const BOSAI_FLASH_EVENT_TYPES = new Set(["線状降水帯"]);
+
+export const classifyHeavyRainBand = (
+  report: JmaReport,
+  ctx: Context,
+): ClassifiedAlert[] => {
+  const alerts: ClassifiedAlert[] = [];
+  const eventId = report.head.eventId;
+
+  for (const infos of asArray(report.body.MeteorologicalInfos)) {
+    for (const info of asArray(infos.MeteorologicalInfo)) {
+      for (const item of asArray(info.Item)) {
+        const property = node(node(item.Kind)?.Property);
+        const event = node(node(property?.EventPart)?.Event);
+        const eventType = text(event?.["@type"]);
+        if (!eventType || !BOSAI_FLASH_EVENT_TYPES.has(eventType)) continue;
+
+        const target = area(item.Area);
+        if (!target) continue;
+
+        const eventName = text(event?.EventName) ?? eventType;
+        alerts.push({
+          // 同じ地域でも発表ごとに別の事象なので EventID でキーを分ける
+          key: `heavy-rain-band:${target.code}:${eventId ?? ctx.reportedAt}`,
+          areaType: "一次細分区域",
+          kind: "observed",
+          hazard: "heavy-rain",
+          // 線状降水帯は災害切迫
+          severity: "emergency",
+          state: "active",
+          headline: `${withPrefecture(target.name, target.code)}に${eventName}`,
+          reportedAt: ctx.reportedAt,
+          expiresAt: ctx.expiresAt,
+          area: target,
+          detail: {
+            event: eventName,
+            eventType,
+            time: text(event?.Time),
+            text: ctx.headline,
+          },
+        });
+      }
+    }
+  }
+  return alerts;
 };

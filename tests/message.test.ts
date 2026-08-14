@@ -49,6 +49,7 @@ const ALL_TYPES = [
   "VXKO70",
   "VPHW50",
   "VPOA50",
+  "VPBS50",
   "VYSE50",
   "VYSE60",
 ];
@@ -431,5 +432,34 @@ describe("警報種別の色", () => {
       }),
     ]);
     expect(text).toContain("🟠 口永良部島");
+  });
+});
+
+describe("線状降水帯 (VPBS50)", () => {
+  const posts = () => {
+    const xml = fs.readFileSync(
+      path.join(__dirname, "fixtures/telegrams", "VPBS50.xml"),
+      "utf-8",
+    );
+    const alerts = classify("VPBS50", parseTelegram(xml));
+    return groupForPosting(alerts).flatMap((g) => formatAlertPosts(g));
+  };
+
+  it("見出しを記録的短時間大雨情報と取り違えない", () => {
+    // どちらも hazard は heavy-rain なので、detail で見分けられていないと
+    // 「記録的短時間大雨情報」と出てしまう
+    const [post] = posts();
+    expect(post).toContain("線状降水帯発生");
+    expect(post).not.toContain("記録的短時間大雨情報");
+  });
+
+  it("対象の細分区域を都道府県付きで並べる", () => {
+    const [post] = posts();
+    expect(post).toContain("千葉県北西部");
+    expect(post).toContain("千葉県南部");
+  });
+
+  it("300グラフェムに収まる", () => {
+    for (const p of posts()) expect([...p].length).toBeLessThanOrEqual(300);
   });
 });

@@ -4,6 +4,7 @@ import {
   classifyEruptionFlash,
   classifyFlood,
   classifyHeavyRain,
+  classifyHeavyRainBand,
   classifyMegaquake,
   classifySediment,
   classifyTornado,
@@ -76,6 +77,10 @@ const CLASSIFIERS: Record<string, Handler> = {
   VPHW51: forecast(classifyTornado), // 竜巻注意情報 (目撃情報付き)
 
   VPOA50: observed(classifyHeavyRain), // 記録的短時間大雨情報
+
+  // 府県気象防災速報。線状降水帯の発生が構造化されて入っている。
+  // 記録的短時間大雨情報と並ぶ大雨災害の直前シグナル。
+  VPBS50: observed(classifyHeavyRainBand),
 };
 
 // 種別コードの下2桁が発表元ごとに変わる電文。範囲で受ける。
