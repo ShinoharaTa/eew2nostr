@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  VPWW53.xml の続報。同じ上川・留萌地方の現況スナップショット。
+  - 上川地方: 大雨警報が大雨注意報へ切り替わる (警報側の解除 Item は出ない)
+  - 留萌地方: 発表警報・注意報はなし (全解除)
+  実電文の一次細分区域ブロックの形をそのまま写し、他の階層は省いている。
+-->
+<Report xmlns="http://xml.kishou.go.jp/jmaxml1/" xmlns:jmx="http://xml.kishou.go.jp/jmaxml1/" xmlns:jmx_add="http://xml.kishou.go.jp/jmaxml1/addition1/">
+<Control>
+<Title>気象特別警報・警報・注意報</Title>
+<DateTime>2026-08-01T13:10:00Z</DateTime>
+<Status>通常</Status>
+<EditorialOffice>旭川地方気象台</EditorialOffice>
+<PublishingOffice>旭川地方気象台</PublishingOffice>
+</Control>
+<Head xmlns="http://xml.kishou.go.jp/jmaxml1/informationBasis1/">
+<Title>上川・留萌地方気象警報・注意報</Title>
+<ReportDateTime>2026-08-01T22:10:00+09:00</ReportDateTime>
+<TargetDateTime>2026-08-01T22:10:00+09:00</TargetDateTime>
+<EventID/>
+<InfoType>発表</InfoType>
+<Serial/>
+<InfoKind>気象警報・注意報</InfoKind>
+<InfoKindVersion>1.1_2</InfoKindVersion>
+<Headline>
+<Text>上川地方では、土砂災害に注意してください。</Text>
+</Headline>
+</Head>
+<Body xmlns="http://xml.kishou.go.jp/jmaxml1/body/meteorology1/" xmlns:jmx_eb="http://xml.kishou.go.jp/jmaxml1/elementBasis1/">
+<Warning type="気象警報・注意報（一次細分区域等）">
+<Item>
+<Kind>
+<Name>大雨注意報</Name>
+<Code>10</Code>
+<Status>警報から注意報</Status>
+<Attention>
+<Note>土砂災害注意</Note>
+</Attention>
+</Kind>
+<Area>
+<Name>上川地方</Name>
+<Code>012010</Code>
+</Area>
+<ChangeStatus>警報・注意報種別に変化有</ChangeStatus>
+<FullStatus>一部</FullStatus>
+<EditingMark>0</EditingMark>
+</Item>
+<Item>
+<Kind>
+<Status>発表警報・注意報はなし</Status>
+</Kind>
+<Area>
+<Name>留萌地方</Name>
+<Code>012020</Code>
+</Area>
+</Item>
+</Warning>
+</Body>
+</Report>

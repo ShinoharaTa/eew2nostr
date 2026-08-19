@@ -1,5 +1,6 @@
 import type { JmaReport } from "../receiver/jma-xml.js";
 import { intensityRank } from "./intensity.js";
+import { withPrefecture } from "./prefecture.js";
 import {
   levelFromName,
   severityFromName,
@@ -7,12 +8,13 @@ import {
   severityFromVolcanoLevel,
 } from "./severity.js";
 import type {
+  AlertArea,
   AlertKind,
+  AlertScope,
   AlertState,
   ClassifiedAlert,
   Severity,
 } from "./types.js";
-import { withPrefecture } from "./prefecture.js";
 import {
   type Node as XmlNode,
   area,
@@ -43,48 +45,80 @@ const isNothing = (name: string | null, status: string | null): boolean =>
 const stateFromStatus = (status: string | null): AlertState =>
   status?.includes("解除") ? "resolved" : "active";
 
-// 気象警報・注意報 (VPWW53)。
+interface WeatherArea {
+  target: AlertArea;
+  // その区域に載っていた警報・注意報。key はステータスのキー。
+  kinds: { key: string; kind: XmlNode }[];
+}
+
+// 気象警報・注意報 (VPWW53) の一次細分区域ブロックを、区域ごとにほどく。
 // 電文は府県 / 一次細分区域 / 市町村まとめ / 市町村 の4階層を含むため、
 // 決定した粒度である一次細分区域だけを採る。
-export const classifyWeather = (
-  report: JmaReport,
-  ctx: Context,
-): ClassifiedAlert[] => {
+// 分類 (発表・解除) と現況スナップショットの両方がここを起点にする。
+const weatherAreas = (report: JmaReport): WeatherArea[] => {
   const warnings = asArray(report.body.Warning).filter(
     (w) => text(w["@type"])?.includes("一次細分区域") ?? false,
   );
-  const alerts: ClassifiedAlert[] = [];
+  const areas: WeatherArea[] = [];
   for (const warning of warnings) {
     for (const item of asArray(warning.Item)) {
       const target = area(item.Area);
       if (!target) continue;
+      const kinds: { key: string; kind: XmlNode }[] = [];
       for (const kind of asArray(item.Kind)) {
         const name = text(kind.Name);
         const status = text(kind.Status);
         if (isNothing(name, status)) continue;
         const code = text(kind.Code) ?? name ?? "";
-        alerts.push({
-          key: `weather:${target.code}:${code}`,
-          areaType: "一次細分区域",
-          kind: ctx.kind,
-          hazard: "weather",
-          severity: severityFromName(name ?? ""),
-          state: stateFromStatus(status),
-          headline: `${target.name}に${name}`,
-          reportedAt: ctx.reportedAt,
-          expiresAt: ctx.expiresAt,
-          area: target,
-          detail: {
-            kind: name,
-            kindCode: code,
-            status,
-            attention: text(node(kind.Attention)?.Note),
-          },
-        });
+        kinds.push({ key: `weather:${target.code}:${code}`, kind });
       }
+      areas.push({ target, kinds });
+    }
+  }
+  return areas;
+};
+
+export const classifyWeather = (
+  report: JmaReport,
+  ctx: Context,
+): ClassifiedAlert[] => {
+  const alerts: ClassifiedAlert[] = [];
+  for (const { target, kinds } of weatherAreas(report)) {
+    for (const { key, kind } of kinds) {
+      const name = text(kind.Name);
+      const status = text(kind.Status);
+      alerts.push({
+        key,
+        areaType: "一次細分区域",
+        kind: ctx.kind,
+        hazard: "weather",
+        severity: severityFromName(name ?? ""),
+        state: stateFromStatus(status),
+        headline: `${target.name}に${name}`,
+        reportedAt: ctx.reportedAt,
+        expiresAt: ctx.expiresAt,
+        area: target,
+        detail: {
+          kind: name,
+          kindCode: text(kind.Code) ?? name ?? "",
+          status,
+          attention: text(node(kind.Attention)?.Note),
+        },
+      });
     }
   }
   return alerts;
+};
+
+// 一次細分区域ごとの現況スナップショット。
+// この電文に載っていない警報・注意報はもう出ていない、と読ませるための材料。
+// 訂正・取消の電文はその時点の現況を表さないため対象外にする。
+export const weatherScopes = (report: JmaReport): AlertScope[] => {
+  if (report.head.infoType !== "発表") return [];
+  return weatherAreas(report).map(({ target, kinds }) => ({
+    keyPrefix: `weather:${target.code}:`,
+    presentKeys: kinds.map(({ key }) => key),
+  }));
 };
 
 // 震度を観測した地域を、震度ごとにまとめる。

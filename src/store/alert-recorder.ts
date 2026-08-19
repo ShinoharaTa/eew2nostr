@@ -1,5 +1,5 @@
-import { classify } from "../classify/index.js";
-import type { ClassifiedAlert } from "../classify/types.js";
+import { classify, scopes } from "../classify/index.js";
+import type { AlertScope, ClassifiedAlert } from "../classify/types.js";
 import type { AlertStatusRecord } from "../core/status.js";
 import { logger } from "../logger.js";
 import type { Delivery } from "../publisher/delivery.js";
@@ -58,8 +58,11 @@ export class AlertRecorder {
 
   async record(telegram: JmaTelegram): Promise<number> {
     const alerts = classify(telegram.type, telegram.report);
-    if (alerts.length === 0) return 0;
-    const count = await this.recordAlerts(alerts);
+    const found = scopes(telegram.type, telegram.report);
+    if (alerts.length === 0 && found.length === 0) return 0;
+    const count = await this.recordAlerts(alerts, found, {
+      reportedAt: telegram.report.head.reportDateTime,
+    });
     logger.info("alerts recorded", {
       type: telegram.type,
       count,
@@ -70,7 +73,12 @@ export class AlertRecorder {
 
   // 分類済みのイベントを記録して配信する。
   // 緊急地震速報のように気象庁フィード以外から来る情報もここに合流する。
-  async recordAlerts(alerts: ClassifiedAlert[]): Promise<number> {
+  async recordAlerts(
+    alerts: ClassifiedAlert[],
+    // 電文が現況を全量で載せている範囲。載っていないものは終了とみなす。
+    found: AlertScope[] = [],
+    ctx?: { reportedAt: string },
+  ): Promise<number> {
     // 同じ電文内で同じキーが複数回現れた場合は、後ろにあるものを最終状態とする
     const latest = new Map<string, ClassifiedAlert>();
     for (const alert of alerts) latest.set(alert.key, alert);
@@ -81,10 +89,37 @@ export class AlertRecorder {
       );
       this.logRouting(alert);
     }
+    const reportedAt =
+      ctx?.reportedAt ?? [...latest.values()][0]?.reportedAt ?? null;
+    if (reportedAt) await this.resolveMissing(found, reportedAt);
     // 記録を終えてから配信する。投稿が全滅しても記録は残る。
     // 配信判断は直前に記録したレコード (前回の投稿文) を参照する。
     await this.delivery?.deliver([...latest.values()]);
     return latest.size;
+  }
+
+  // 電文に載らなくなった発表中のレコードを解除する。
+  //
+  // 配信はしない。警報から注意報への切り替えなら注意報の発表が配信されるし、
+  // 受信を止めていた間に溜まった取り残しが一斉に投稿されるのも避けたい。
+  private async resolveMissing(
+    found: AlertScope[],
+    reportedAt: string,
+  ): Promise<void> {
+    for (const scope of found) {
+      const present = new Set(scope.presentKeys);
+      for (const record of this.status.activeByPrefix(scope.keyPrefix)) {
+        if (present.has(record.key)) continue;
+        await this.status.update(record.key, (target) => {
+          target.status = "resolved";
+          target.updatedAt = reportedAt;
+        });
+        logger.info("電文に載らなくなったため解除しました", {
+          key: record.key,
+          headline: record.headline,
+        });
+      }
+    }
   }
 
   // 配信先を判定してログに残す。鍵が未設定のアカウントは
