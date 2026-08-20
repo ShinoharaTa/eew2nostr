@@ -10,6 +10,7 @@
 |---|---|
 | [docs/status-events.md](docs/status-events.md) | **リレーに記録される防災ステータスの仕様。** kind 30830・タグ設計・content スキーマ・購読例。別プロジェクトから参照する場合はここだけ読めばよい |
 | [docs/telegram-coverage-plan.md](docs/telegram-coverage-plan.md) | 対応している電文の一覧と、未対応分の実装計画。気象庁の電文仕様の調査結果 |
+| [docs/deploy.md](docs/deploy.md) | 本番への反映方法。instance 側の cron が main の更新を検知して入れ替える |
 
 ## 仕組み
 
