@@ -11,8 +11,9 @@ import {
   classifyTsunami,
   classifyVolcano,
   classifyWeather,
+  weatherScopes,
 } from "./classifiers.js";
-import type { AlertKind, ClassifiedAlert } from "./types.js";
+import type { AlertKind, AlertScope, ClassifiedAlert } from "./types.js";
 
 export * from "./types.js";
 
@@ -32,6 +33,9 @@ type ClassifyFn = (
 interface Handler {
   classify: ClassifyFn;
   kind: AlertKind;
+  // 電文がその範囲の現況を全量で載せる種別だけが持つ。
+  // 電文に載っていない発表中のレコードを終了とみなすために使う。
+  scope?: (report: JmaReport) => AlertScope[];
 }
 
 const forecast = (fn: ClassifyFn): Handler => ({
@@ -49,7 +53,10 @@ const observed = (fn: ClassifyFn): Handler => ({
 // 同一内容の二重配信であり、R06系 (VPWW55/56/58/59/61) も並行配信のため、
 // すべて処理すると同じ警報を重複して記録してしまう。
 const CLASSIFIERS: Record<string, Handler> = {
-  VPWW53: forecast(classifyWeather),
+  // 一次細分区域ブロックは府県予報区の全区域の現況を載せる。
+  // 警報から注意報への切り替えでは警報側の解除電文が出ないため、
+  // 電文に載っていない警報を終了とみなす経路を併せて持たせる。
+  VPWW53: { ...forecast(classifyWeather), scope: weatherScopes },
 
   VXSE51: observed(classifyEarthquake), // 震度速報
   VXSE52: observed(classifyEarthquake), // 震源に関する情報
@@ -132,4 +139,14 @@ export const classify = (
     expiresAt: report.head.validDateTime,
     kind: handler.kind,
   });
+};
+
+// 電文が全量で載せている範囲を返す。持たない種別では空。
+// 呼び出し側は、返った範囲のうち電文に載っていないレコードを終了として扱う。
+export const scopes = (
+  type: string | null,
+  report: JmaReport,
+): AlertScope[] => {
+  if (type === null) return [];
+  return handlerFor(type)?.scope?.(report) ?? [];
 };

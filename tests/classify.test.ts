@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { classify, isSupported, supportedTypes } from "../src/classify";
+import { classify, isSupported, scopes, supportedTypes } from "../src/classify";
 import type { ClassifiedAlert } from "../src/classify/types";
 import { parseTelegram } from "../src/receiver/jma-xml";
 
@@ -17,6 +17,16 @@ const run = (type: string): ClassifiedAlert[] => classify(type, load(type));
 // 同じ種別の別系統 (取消・段階違い) を読む
 const runFile = (type: string, file: string): ClassifiedAlert[] =>
   classify(
+    type,
+    parseTelegram(
+      fs.readFileSync(
+        path.join(__dirname, "fixtures/telegrams", file),
+        "utf-8",
+      ),
+    ),
+  );
+const loadScopes = (type: string, file: string) =>
+  scopes(
     type,
     parseTelegram(
       fs.readFileSync(
@@ -110,6 +120,48 @@ describe("classify", () => {
 
     it("市町村など他の階層を重複して拾わない", () => {
       expect(new Set(alerts.map((a) => a.key)).size).toBe(alerts.length);
+    });
+
+    // 一次細分区域ブロックは府県予報区の全区域の現況を載せるため、
+    // 電文に無い警報はもう出ていないと読める
+    describe("現況スナップショット", () => {
+      it("区域ごとに、その電文に載っていたキーを返す", () => {
+        expect(scopes("VPWW53", load("VPWW53"))).toEqual([
+          {
+            keyPrefix: "weather:012010:",
+            presentKeys: ["weather:012010:10", "weather:012010:20"],
+          },
+          {
+            keyPrefix: "weather:012020:",
+            presentKeys: ["weather:012020:20"],
+          },
+        ]);
+      });
+
+      // 発表警報・注意報はなし はキー0件になり、その区域の全解除を意味する
+      it("警報・注意報なしの区域はキー0件になる", () => {
+        const found = loadScopes("VPWW53", "VPWW53-next.xml");
+        expect(found).toContainEqual({
+          keyPrefix: "weather:012020:",
+          presentKeys: [],
+        });
+      });
+
+      // 訂正・取消はその時点の現況を表さないため、突き合わせに使わない
+      it("発表以外の電文はスコープを返さない", () => {
+        const report = load("VPWW53");
+        expect(
+          scopes("VPWW53", {
+            ...report,
+            head: { ...report.head, infoType: "取消" },
+          }),
+        ).toEqual([]);
+      });
+
+      it("スコープを持たない種別は空を返す", () => {
+        expect(scopes("VXWW50", load("VXWW50"))).toEqual([]);
+        expect(scopes(null, load("VPWW53"))).toEqual([]);
+      });
     });
   });
 

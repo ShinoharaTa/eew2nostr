@@ -6,15 +6,16 @@ import { AlertRecorder } from "../src/store/alert-recorder";
 import { SqliteStatusStore } from "../src/store/sqlite-store";
 import { StatusManager } from "../src/store/status-manager";
 
-const telegram = (type: string): JmaTelegram => ({
-  id: `https://example.test/${type}.xml`,
+// 同じ種別の続報を並べたいときはフィクスチャ名と種別コードを分ける
+const telegram = (fixture: string, type = fixture): JmaTelegram => ({
+  id: `https://example.test/${fixture}.xml`,
   type,
-  title: type,
+  title: fixture,
   updatedAt: new Date("2026-08-01T00:00:00Z"),
-  url: `https://example.test/${type}.xml`,
+  url: `https://example.test/${fixture}.xml`,
   report: parseTelegram(
     fs.readFileSync(
-      path.join(__dirname, "fixtures/telegrams", `${type}.xml`),
+      path.join(__dirname, "fixtures/telegrams", `${fixture}.xml`),
       "utf-8",
     ),
   ),
@@ -84,6 +85,70 @@ describe("AlertRecorder", () => {
     const record = status.get("tsunami:712");
     expect(record?.status).toBe("resolved");
     expect(record?.headline).toContain("解除");
+  });
+
+  // VPWW53 の一次細分区域ブロックは府県予報区の全区域の現況を載せる。
+  // 警報から注意報への切り替えでは警報側の解除電文が出ないため、
+  // 電文に載らなくなったものを解除できないと発表中のまま残り続ける。
+  describe("現況スナップショット", () => {
+    it("警報から注意報に切り替わった警報を解除する", async () => {
+      const { recorder, status } = await newRecorder();
+      await recorder.record(telegram("VPWW53-warning", "VPWW53"));
+      expect(status.get("weather:012010:03")?.status).toBe("active");
+
+      await recorder.record(telegram("VPWW53-next", "VPWW53"));
+
+      const warning = status.get("weather:012010:03");
+      expect(warning?.status).toBe("resolved");
+      expect(warning?.updatedAt).toBe("2026-08-01T22:10:00+09:00");
+      // 切り替え先の注意報は発表中として記録される
+      expect(status.get("weather:012010:10")?.status).toBe("active");
+    });
+
+    it("発表警報・注意報はなし をその区域の全解除として扱う", async () => {
+      const { recorder, status } = await newRecorder();
+      await recorder.record(telegram("VPWW53-warning", "VPWW53"));
+      expect(status.get("weather:012020:20")?.status).toBe("active");
+
+      await recorder.record(telegram("VPWW53-next", "VPWW53"));
+
+      expect(status.get("weather:012020:20")?.status).toBe("resolved");
+    });
+
+    it("解除は記録するだけで配信しない", async () => {
+      const store = new SqliteStatusStore(":memory:");
+      await store.init();
+      const status = new StatusManager(store, { mirror: jest.fn() });
+      await status.init();
+      const delivery = { deliver: jest.fn() };
+      const recorder = new AlertRecorder(status, undefined, delivery as never);
+
+      await recorder.record(telegram("VPWW53-warning", "VPWW53"));
+      await recorder.record(telegram("VPWW53-next", "VPWW53"));
+
+      // 2通目で配信に渡るのは電文に載っていた注意報だけ
+      const delivered = delivery.deliver.mock.calls[1][0] as { key: string }[];
+      expect(delivered.map((alert) => alert.key)).toEqual([
+        "weather:012010:10",
+      ]);
+    });
+
+    it("スコープ外のレコードは巻き込まない", async () => {
+      const { recorder, status, store } = await newRecorder();
+      await recorder.record(telegram("VPWW53-warning", "VPWW53"));
+      // 上川・留萌 (012010 / 012020) のスコープに入らない別種別
+      await recorder.record(telegram("VXWW50"));
+      const before = (await store.load())
+        .filter((record) => !record.key.startsWith("weather:0120"))
+        .map((record) => [record.key, record.status] as const);
+      expect(before.length).toBeGreaterThan(0);
+
+      await recorder.record(telegram("VPWW53-next", "VPWW53"));
+
+      for (const [key, expected] of before) {
+        expect(status.get(key)?.status).toBe(expected);
+      }
+    });
   });
 
   it("有効期限を保持する", async () => {
