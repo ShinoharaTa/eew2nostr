@@ -1,7 +1,26 @@
 import {
+  prefectureCodeFromAreaCode,
   prefectureFromAreaCode,
   withPrefecture,
 } from "../src/classify/prefecture";
+
+// 画像APIへ渡すのは県名ではなくコード (JIS X 0401)
+describe("prefectureCodeFromAreaCode", () => {
+  it.each([
+    ["012010", "01"], // 6桁 (一次細分区域)
+    ["0421502", "04"], // 7桁 (市町村等)
+    ["200000", "20"], // 府県予報区
+  ])("%s → %s", (code, prefecture) => {
+    expect(prefectureCodeFromAreaCode(code)).toBe(prefecture);
+  });
+
+  it.each(["743", "509", "8202090004", "990000", "", "abcdef"])(
+    "%s は対象外で null",
+    (code) => {
+      expect(prefectureCodeFromAreaCode(code)).toBeNull();
+    },
+  );
+});
 
 // 気象庁の地域コードは先頭2桁が都道府県コードになっている
 describe("prefectureFromAreaCode", () => {

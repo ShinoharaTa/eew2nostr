@@ -53,11 +53,19 @@ const PREFECTURES: Record<string, string> = {
   "47": "沖縄県",
 };
 
-export const prefectureFromAreaCode = (
+export const prefectureCodeFromAreaCode = (
   code: string | null | undefined,
 ): string | null => {
   if (!code || !/^\d{6,7}$/.test(code)) return null;
-  return PREFECTURES[code.slice(0, 2)] ?? null;
+  const prefecture = code.slice(0, 2);
+  return prefecture in PREFECTURES ? prefecture : null;
+};
+
+export const prefectureFromAreaCode = (
+  code: string | null | undefined,
+): string | null => {
+  const prefecture = prefectureCodeFromAreaCode(code);
+  return prefecture === null ? null : PREFECTURES[prefecture];
 };
 
 // 全国に配信するため、地域名だけでは通じないものに都道府県名を補う。

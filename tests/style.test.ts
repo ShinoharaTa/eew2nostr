@@ -1,4 +1,5 @@
 import {
+  colorToken,
   headline,
   intensityColor,
   severityColor,
@@ -157,5 +158,23 @@ describe("shakingCallToAction", () => {
   it.each(["4", "3", "1", "不明"])("震度%s には呼びかけない", (intensity) => {
     expect(shakingCallToAction("forecast", intensity)).toBeNull();
     expect(shakingCallToAction("observed", intensity)).toBeNull();
+  });
+});
+
+describe("colorToken", () => {
+  it.each([
+    ["⚫", "black"],
+    ["🟣", "purple"],
+    ["🔴", "red"],
+    ["🟠", "orange"],
+    ["🟡", "yellow"],
+    ["⚪", "white"],
+  ] as const)("%s → %s", (emoji, token) => {
+    expect(colorToken(emoji)).toBe(token);
+  });
+
+  it("写像に無い文字列は null", () => {
+    expect(colorToken("")).toBeNull();
+    expect(colorToken("x")).toBeNull();
   });
 });

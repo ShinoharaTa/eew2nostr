@@ -6,7 +6,7 @@ import type { NotifierPort } from "../notifier/notifier.js";
 import type { Router } from "../routing/router.js";
 import type { StatusManager } from "../store/status-manager.js";
 import { type AccountClients, SNS_NAMES, type SnsName } from "./account.js";
-import { formatAlertPosts, groupForPosting } from "./message.js";
+import { alertImageUrl, formatAlertPosts, groupForPosting } from "./message.js";
 
 export type { NotifierPort } from "../notifier/notifier.js";
 
@@ -54,6 +54,8 @@ export class Delivery {
     private notifier?: NotifierPort,
     // 実際に投稿できた件数を数える。稼働報告に使う。
     private onDelivered?: () => void,
+    // 発令エリア画像API (viewer) の base URL。空なら画像を付けない
+    private imageBaseUrl = "",
   ) {}
 
   // 1通の電文から生まれた防災イベントを配信する。
@@ -99,11 +101,26 @@ export class Delivery {
       // どのイベントの続きか一意に決められないため繋げない。
       const threadKey = group.length === 1 ? head.key : null;
 
+      // 発令エリアの地図画像は Nostr だけ URL で添付する (content 中の
+      // 画像URLをインライン展開するのは Nostr クライアントの慣習のため。
+      // Bluesky の embed は第2段)。URL は同じ group から決定的に導かれる
+      // ため、重複判定は上の signature (画像なしの文面) のままでよい
+      const imageUrl = alertImageUrl(group, this.imageBaseUrl);
+      const nostrPosts =
+        imageUrl === null
+          ? posts
+          : formatAlertPosts(group, undefined, imageUrl);
+
       for (const accountKey of targets) {
         const account = this.accounts.get(accountKey);
         if (!account) continue;
         for (const sns of SNS_NAMES) {
-          this.enqueue(account, sns, posts, threadKey);
+          this.enqueue(
+            account,
+            sns,
+            sns === "nostr" ? nostrPosts : posts,
+            threadKey,
+          );
         }
       }
     }

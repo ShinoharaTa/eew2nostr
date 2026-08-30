@@ -462,3 +462,52 @@ describe("Delivery", () => {
     });
   });
 });
+
+describe("発令エリアの画像URL", () => {
+  it("Nostr にだけ付き、他の SNS には付かない", async () => {
+    const publishNote = jest
+      .fn()
+      .mockImplementation(async () => "a".repeat(64));
+    const publishBsky = jest
+      .fn()
+      .mockImplementation(async () => ({ uri: "at://post/1", cid: "cid1" }));
+    const clients = {
+      key: "warning",
+      label: "warning",
+      nostr: { publishNote } as unknown,
+      bluesky: { publish: publishBsky } as unknown,
+      concrnt: null,
+    } as AccountClients;
+
+    const store = new SqliteStatusStore(":memory:");
+    await store.init();
+    const status = new StatusManager(store, { mirror: jest.fn() });
+    await status.init();
+    const delivery = new Delivery(
+      new Map([["warning", clients]]),
+      new Router(config, {}),
+      status,
+      undefined,
+      undefined,
+      "https://viewer.example",
+    );
+
+    const xml = fs.readFileSync(
+      path.join(__dirname, "fixtures/telegrams", "VPWW53-warning.xml"),
+      "utf-8",
+    );
+    await delivery.deliver(classify("VPWW53", parseTelegram(xml)));
+    await delivery.flush();
+
+    expect(publishNote).toHaveBeenCalled();
+    expect(publishBsky).toHaveBeenCalled();
+    for (const [note] of publishNote.mock.calls) {
+      expect(note.content).toContain(
+        "https://viewer.example/images/alert.webp?pref=",
+      );
+    }
+    for (const [content] of publishBsky.mock.calls) {
+      expect(content).not.toContain("/images/alert.webp");
+    }
+  });
+});
