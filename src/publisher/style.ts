@@ -117,6 +117,31 @@ export const severityColor = (
   return LEVEL_COLOR[severity];
 };
 
+// viewer 画像APIへ渡す色トークン。重い順 (= 凡例の表示順)。
+// 色の判定は severityColor / intensityColor に任せ、返ってきた絵文字を
+// そのまま写像する。色のロジックを2か所に育てないため (#40 の再発防止)。
+export const COLOR_TOKENS = [
+  "black",
+  "purple",
+  "red",
+  "orange",
+  "yellow",
+  "white",
+] as const;
+export type ColorToken = (typeof COLOR_TOKENS)[number];
+
+const EMOJI_TOKEN: Record<string, ColorToken> = {
+  "⚫": "black",
+  "🟣": "purple",
+  "🔴": "red",
+  "🟠": "orange",
+  "🟡": "yellow",
+  "⚪": "white",
+};
+
+export const colorToken = (emoji: string): ColorToken | null =>
+  EMOJI_TOKEN[emoji] ?? null;
+
 // 緊急度から装飾の段階を決める。解除は危険度が下がった状態なので
 // 元の緊急度に関わらず一番軽い段階に落ちる。
 export const tierForSeverity = (

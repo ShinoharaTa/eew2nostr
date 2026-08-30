@@ -9,11 +9,17 @@ import {
   intensityRangeLabel,
   intensityRank,
 } from "../classify/intensity.js";
-import { withPrefecture } from "../classify/prefecture.js";
+import {
+  prefectureCodeFromAreaCode,
+  withPrefecture,
+} from "../classify/prefecture.js";
 import type { ClassifiedAlert, HazardType } from "../classify/types.js";
 import {
+  COLOR_TOKENS,
+  type ColorToken,
   FOOTER,
   type Tier,
+  colorToken,
   headline,
   intensityColor,
   severityColor,
@@ -365,13 +371,16 @@ const areaLine = (names: string[], budget: number): string => {
   return graphemes(summary) <= budget ? summary : `${names.length}地域`;
 };
 
+// imageUrl はハッシュタグの後・FOOTER の前に1行で置く。
+// 多くの Nostr クライアントは content 中の画像URLをインライン展開する。
 const assemble = (
   head: string,
   areas: string,
   blocks: string[],
   hashtag: string,
+  imageUrl = "",
 ): string =>
-  [head, areas, ...blocks, hashtag, FOOTER]
+  [head, areas, ...blocks, hashtag, imageUrl, FOOTER]
     .filter((part) => part !== "")
     .join("\n\n");
 
@@ -384,6 +393,9 @@ const assemble = (
 export const formatAlertPosts = (
   alerts: ClassifiedAlert[],
   maxGraphemes: number = MAX_GRAPHEMES,
+  // 発令エリア画像の URL (alertImageUrl の結果)。グラフェム上限に含めて
+  // 計算するため、溢れる場合は地域列挙の省略で吸収され、URL は落ちない。
+  imageUrl = "",
 ): string[] => {
   if (alerts.length === 0) return [];
   const first = alerts[0];
@@ -446,11 +458,13 @@ export const formatAlertPosts = (
   const color = resolved
     ? ""
     : `${severityColor(first.severity, kindName, first.hazard)} `;
-  const fixed = graphemes(assemble(head, "", [...lines, ...suffix], hashtag));
+  const fixed = graphemes(
+    assemble(head, "", [...lines, ...suffix], hashtag, imageUrl),
+  );
   const listed = areaLine(names, Math.max(0, maxGraphemes - fixed - 2));
   const areas = listed === "" ? "" : `${color}${listed}`;
 
-  const base = assemble(head, areas, [...lines, ...suffix], hashtag);
+  const base = assemble(head, areas, [...lines, ...suffix], hashtag, imageUrl);
 
   // 地震は震度を観測した地域を添える。
   // 震度1〜2は件数が多く全国配信では判断に寄与しないため落とす。
@@ -463,7 +477,9 @@ export const formatAlertPosts = (
     if (isEarthquake && maxInt !== "") {
       const color = intensityColor(maxInt);
       const line = `${color ? `${color} ` : ""}最大震度${intensityLabel(maxInt)}`;
-      return [assemble(head, areas, [...lines, line, ...suffix], hashtag)];
+      return [
+        assemble(head, areas, [...lines, line, ...suffix], hashtag, imageUrl),
+      ];
     }
     return [base];
   }
@@ -473,7 +489,7 @@ export const formatAlertPosts = (
     // 分割したときだけ、その投稿が扱う震度の範囲を見出しに出す
     const splitHead = label === "" ? head : headline(tier, `${title} ${label}`);
     const used = graphemes(
-      assemble(splitHead, areas, [...lines, ...suffix], hashtag),
+      assemble(splitHead, areas, [...lines, ...suffix], hashtag, imageUrl),
     );
     const observed = observedBlocks(
       selected,
@@ -485,6 +501,7 @@ export const formatAlertPosts = (
       areas,
       [...lines, ...observed, ...suffix],
       hashtag,
+      imageUrl,
     );
   };
 
@@ -496,6 +513,7 @@ export const formatAlertPosts = (
       areas,
       [...lines, ...suffix],
       hashtag,
+      imageUrl,
     ),
   );
   const packed = packGroups(groups, Math.max(0, maxGraphemes - overhead - 2));
@@ -541,4 +559,53 @@ export const groupForPosting = (
     else groups.set(key, [alert]);
   }
   return [...groups.values()];
+};
+
+// 発令エリアを強調した日本地図の画像API (eew2nostr-viewer)。
+// 自己ホストの viewer に切り替えるときは ALERT_IMAGE_BASE_URL で上書きする。
+export const DEFAULT_ALERT_IMAGE_BASE_URL =
+  "https://eew2nostr-viewer.vercel.app";
+
+// 重い色ほど COLOR_TOKENS の前にある
+const tokenWeight = (token: ColorToken): number => COLOR_TOKENS.indexOf(token);
+
+// 投稿グループの発令エリアを塗った地図画像の URL を組み立てる。
+// 県が1つも導出できなければ null (画像を付けない)。解除のみの投稿は
+// state で弾かれるため、発令エリアの視覚強調という目的から外れない。
+//
+// 3桁コード系 (震度速報の地域・津波予報区・火山・河川) と code 空 (EEW) は
+// 先頭2桁規則が使えないため対象外 (docs/alert-image-integration.md の第2・3段)。
+export const alertImageUrl = (
+  alerts: ClassifiedAlert[],
+  baseUrl: string,
+): string | null => {
+  if (baseUrl === "") return null;
+  const byPrefecture = new Map<string, ColorToken>();
+  for (const alert of alerts) {
+    if (alert.state !== "active") continue;
+    const prefecture = prefectureCodeFromAreaCode(alert.area?.code);
+    if (prefecture === null) continue;
+    // 色は投稿の地域行と同じ規則で引く (severity は津波などで
+    // ルーティング用に格上げされるため、種別名を優先する)
+    const kindName = detailText(alert, "kind") ?? alertName(alert);
+    const token = colorToken(
+      severityColor(alert.severity, kindName, alert.hazard),
+    );
+    if (token === null) continue;
+    // 同じ県に複数のアラートがあるときは最も重い色に丸める
+    const current = byPrefecture.get(prefecture);
+    if (current === undefined || tokenWeight(token) < tokenWeight(current)) {
+      byPrefecture.set(prefecture, token);
+    }
+  }
+  if (byPrefecture.size === 0) return null;
+  // 画像の凡例は指定順に出るため、重い色 → 軽い色、同色内は県コード昇順
+  const params = [...byPrefecture]
+    .sort(
+      ([codeA, a], [codeB, b]) =>
+        tokenWeight(a) - tokenWeight(b) || Number(codeA) - Number(codeB),
+    )
+    .map(([code, token]) => `pref=${code}:${token}`)
+    .join("&");
+  return `${baseUrl.replace(/\/+$/, "")}/images/alert.webp?${params}`;
 };

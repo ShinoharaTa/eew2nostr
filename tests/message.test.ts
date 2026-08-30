@@ -4,6 +4,7 @@ import { classify } from "../src/classify";
 import type { ClassifiedAlert } from "../src/classify/types";
 import {
   MAX_GRAPHEMES,
+  alertImageUrl,
   formatAlertPosts,
   formatAlerts,
   groupForPosting,
@@ -461,5 +462,144 @@ describe("線状降水帯 (VPBS50)", () => {
 
   it("300グラフェムに収まる", () => {
     for (const p of posts()) expect([...p].length).toBeLessThanOrEqual(300);
+  });
+});
+
+describe("発令エリアの画像URL", () => {
+  const BASE = "https://viewer.example";
+  const weather = (over: Partial<ClassifiedAlert>): ClassifiedAlert => ({
+    key: "x",
+    hazard: "weather",
+    kind: "forecast",
+    severity: "warning",
+    state: "active",
+    headline: "",
+    reportedAt: "2026-08-31T10:00:00+09:00",
+    expiresAt: null,
+    area: { name: "東京地方", code: "130010" },
+    areaType: "一次細分区域",
+    detail: { kind: "大雨警報" },
+    ...over,
+  });
+
+  it("同一県に警報と注意報があれば重い色に丸める", () => {
+    const url = alertImageUrl(
+      [
+        weather({ detail: { kind: "大雨警報" } }),
+        weather({
+          severity: "advisory",
+          area: { name: "多摩北部", code: "1320300" },
+          detail: { kind: "洪水注意報" },
+        }),
+      ],
+      BASE,
+    );
+    expect(url).toBe(`${BASE}/images/alert.webp?pref=13:red`);
+  });
+
+  it("重い色が先、同色内は県コード昇順に並ぶ (=凡例の順)", () => {
+    const url = alertImageUrl(
+      [
+        weather({
+          severity: "advisory",
+          area: { name: "さいたま市", code: "1110000" },
+          detail: { kind: "大雨注意報" },
+        }),
+        weather({
+          severity: "emergency",
+          area: { name: "千葉県北西部", code: "120010" },
+          detail: { kind: "大雨特別警報" },
+        }),
+        weather({
+          severity: "emergency",
+          area: { name: "東京地方", code: "130010" },
+          detail: { kind: "土砂災害警戒情報" },
+        }),
+      ],
+      BASE,
+    );
+    expect(url).toBe(
+      `${BASE}/images/alert.webp?pref=12:black&pref=13:purple&pref=11:yellow`,
+    );
+  });
+
+  it("3桁コード・code 空は無視され、県ゼロなら null", () => {
+    expect(
+      alertImageUrl(
+        [
+          weather({
+            hazard: "tsunami",
+            area: { name: "有明・八代海", code: "712" },
+            detail: { kind: "津波警報" },
+          }),
+          weather({ area: { name: "震央", code: "" } }),
+        ],
+        BASE,
+      ),
+    ).toBeNull();
+  });
+
+  it("解除のみの投稿には付けない", () => {
+    expect(alertImageUrl([weather({ state: "resolved" })], BASE)).toBeNull();
+  });
+
+  it("base URL が空なら無効 (null)", () => {
+    expect(alertImageUrl([weather({})], "")).toBeNull();
+  });
+
+  it("base URL の末尾スラッシュは重ねない", () => {
+    expect(alertImageUrl([weather({})], `${BASE}/`)).toBe(
+      `${BASE}/images/alert.webp?pref=13:red`,
+    );
+  });
+
+  it("URL はハッシュタグの後・FOOTER の前に置かれる", () => {
+    const url = `${BASE}/images/alert.webp?pref=13:red`;
+    const [text] = formatAlertPosts([weather({})], MAX_GRAPHEMES, url);
+    const tag = text.indexOf("#気象警報");
+    expect(tag).toBeGreaterThan(-1);
+    expect(text.indexOf(url)).toBeGreaterThan(tag);
+    expect(text.indexOf("※テスト運用中です。")).toBeGreaterThan(
+      text.indexOf(url),
+    );
+  });
+
+  it("上限ぎりぎりでも URL は欠落せず、地域列挙の省略で吸収する", () => {
+    const alerts = Array.from({ length: 12 }, (_, i) =>
+      weather({
+        area: {
+          name: `とても長い名前の地域その${String(i).padStart(6, "0")}`,
+          code: "130010",
+        },
+      }),
+    );
+    const url = alertImageUrl(alerts, BASE);
+    expect(url).not.toBeNull();
+    const [text] = formatAlertPosts(alerts, MAX_GRAPHEMES, url ?? "");
+    expect(text).toContain(url);
+    expect(text).toContain("ほか");
+    expect(graphemes(text)).toBeLessThanOrEqual(MAX_GRAPHEMES);
+  });
+
+  // 生成した URL が画像APIの 400 にならない形式であることを実電文で確かめる
+  it("実電文から生成した URL は画像APIの形式に合う", () => {
+    const urls = groupForPosting(alertsOf("VPWW53"))
+      .map((group) => alertImageUrl(group, BASE))
+      .filter((url): url is string => url !== null);
+    expect(urls.length).toBeGreaterThan(0);
+    for (const url of urls) {
+      const parsed = new URL(url);
+      expect(parsed.pathname).toBe("/images/alert.webp");
+      const prefs = parsed.searchParams.getAll("pref");
+      expect(prefs.length).toBeGreaterThan(0);
+      for (const pref of prefs) {
+        expect(pref).toMatch(
+          /^\d{1,2}:(black|purple|red|orange|yellow|white)$/,
+        );
+        const code = Number(pref.split(":")[0]);
+        expect(code).toBeGreaterThanOrEqual(1);
+        expect(code).toBeLessThanOrEqual(47);
+      }
+    }
   });
 });

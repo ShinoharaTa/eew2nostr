@@ -16,6 +16,7 @@ import {
 } from "./publisher/account.js";
 import { Delivery } from "./publisher/delivery.js";
 import { EEWPipeline } from "./publisher/eew-pipeline.js";
+import { DEFAULT_ALERT_IMAGE_BASE_URL } from "./publisher/message.js";
 import { NostrPublisher } from "./publisher/nostr.js";
 import { DmdataReceiver } from "./receiver/dmdata.js";
 import { SqliteFeedCursorStore } from "./receiver/feed-cursor.js";
@@ -39,6 +40,7 @@ const {
   STATUS_DB_PATH,
   ROUTING_CONFIG_PATH,
   HEARTBEAT_HOURS,
+  ALERT_IMAGE_BASE_URL,
 } = process.env;
 
 const relays = [
@@ -96,9 +98,17 @@ const main = async () => {
   const router = new Router(routingConfig);
   const accounts = buildAccounts(routingConfig, relays);
   await initAccounts(accounts);
-  const delivery = new Delivery(accounts, router, status, notifier, () => {
-    counters.delivered += 1;
-  });
+  const delivery = new Delivery(
+    accounts,
+    router,
+    status,
+    notifier,
+    () => {
+      counters.delivered += 1;
+    },
+    // 空文字を設定すると画像を付けない
+    ALERT_IMAGE_BASE_URL ?? DEFAULT_ALERT_IMAGE_BASE_URL,
+  );
 
   const recorder = new AlertRecorder(status, router, delivery);
 
