@@ -37,9 +37,7 @@
             "moduleResolution": "node",
             "baseUrl": ".",
             "paths": {
-              "nostr-tools/*": [
-                "node_modules/nostr-tools/lib/types/*"
-              ]
+              "nostr-tools/*": ["node_modules/nostr-tools/lib/types/*"]
             }
           }
         }
