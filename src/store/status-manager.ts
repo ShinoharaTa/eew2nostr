@@ -32,12 +32,17 @@ export class StatusManager {
     return this.records.get(key);
   }
 
+  // 発表中のレコードを返す。期限切れスイープが走査に使う。
+  active(): AlertStatusRecord[] {
+    return [...this.records.values()].filter(
+      (record) => record.status === "active",
+    );
+  }
+
   // キー接頭辞に一致する発表中のレコードを返す。
   // 電文が現況を全量で載せる種別で、載らなくなったものを見つけるのに使う。
   activeByPrefix(prefix: string): AlertStatusRecord[] {
-    return [...this.records.values()].filter(
-      (record) => record.status === "active" && record.key.startsWith(prefix),
-    );
+    return this.active().filter((record) => record.key.startsWith(prefix));
   }
 
   // 既存レコードがあればそれを、無ければ initial を採用して mutate を適用する
