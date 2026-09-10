@@ -43,6 +43,14 @@ const {
   ALERT_IMAGE_BASE_URL,
 } = process.env;
 
+// .env.sample は未設定の項目を空文字で並べているため、`??` では既定値に
+// 落ちない。空文字は「未設定」として扱う。
+// ALERT_IMAGE_BASE_URL のように空文字自体に意味がある変数には使わないこと。
+const orDefault = (value: string | undefined, fallback: string): string =>
+  value?.trim() ? value.trim() : fallback;
+
+const DEFAULT_STATUS_DB_PATH = "./data/status.db";
+
 const relays = [
   "wss://relay-jp.shino3.net",
   "wss://yabu.me",
@@ -81,7 +89,9 @@ const main = async () => {
   // SNS への投稿は routing.json のアカウント (HEX_EEW など) が担う。
   const nostr = new NostrPublisher(HEX ?? "", relays);
 
-  const store = new SqliteStatusStore(STATUS_DB_PATH ?? "./data/status.db");
+  const store = new SqliteStatusStore(
+    orDefault(STATUS_DB_PATH, DEFAULT_STATUS_DB_PATH),
+  );
   await store.init();
   // ミラーは宛先が違うだけなので、接続プールは投稿用と共有する
   const status = new StatusManager(
@@ -93,7 +103,7 @@ const main = async () => {
   // 配信先の定義。鍵が未設定の経路は投稿せず、
   // コンソールに出すテストモードとして動く。
   const routingConfig = loadRoutingConfig(
-    ROUTING_CONFIG_PATH ?? DEFAULT_ROUTING_CONFIG_PATH,
+    orDefault(ROUTING_CONFIG_PATH, DEFAULT_ROUTING_CONFIG_PATH),
   );
   const router = new Router(routingConfig);
   const accounts = buildAccounts(routingConfig, relays);
@@ -191,7 +201,7 @@ const main = async () => {
     const summary = startupSummary({
       dmdata: (EEW_TOKEN ?? "") !== "",
       jmaFeeds,
-      statusDbPath: STATUS_DB_PATH ?? "./data/status.db",
+      statusDbPath: orDefault(STATUS_DB_PATH, DEFAULT_STATUS_DB_PATH),
       accounts: router.accounts(),
       discordConfigured: notifier.isConfigured(),
     });
@@ -212,7 +222,7 @@ const startHeartbeat = (
   counters: Counters,
   startedAt: Date,
 ): void => {
-  const hours = Number(HEARTBEAT_HOURS ?? "6");
+  const hours = Number(orDefault(HEARTBEAT_HOURS, "6"));
   if (!Number.isFinite(hours) || hours <= 0) {
     logger.info("稼働報告は無効です", { HEARTBEAT_HOURS });
     return;
