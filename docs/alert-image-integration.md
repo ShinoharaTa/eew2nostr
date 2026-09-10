@@ -18,7 +18,7 @@ eew2nostr-viewer 側の画像APIがレンダリングし、bot は URL を組み
 `VOLCANO_LEVEL_COLOR` が返す絵文字を、そのままトークンへ写像するだけにする。
 色のロジックが2か所に育つと #40 のような不整合が再発するため。
 
-## 画像APIの仕様(2026-08-31 時点)
+## 画像APIの仕様(2026-09-10 時点)
 
 ```
 GET https://eew2nostr-viewer.vercel.app/images/alert.webp?pref=13:red&pref=11:yellow
@@ -29,11 +29,22 @@ GET https://eew2nostr-viewer.vercel.app/images/alert.webp?pref=13:red&pref=11:ye
 | `pref` | `コード` または `コード:色`。コードは JIS X 0401(1〜47、ゼロ埋め不要)。繰り返し・カンマ区切り可。色省略時は `key` の色 |
 | `key` | 色省略時の既定色(既定 `red`) |
 | `w` / `h` | 100〜2000。既定 1200×630(OGP) |
-| `view` | `auto`(既定、発令県へ自動ズーム)/ `japan`(全国図) |
+| `view` | `auto`(既定、発令県と震源が収まる範囲へ自動ズーム)/ `japan`(全国図) |
+
+震源のパラメータ(viewer#60 / PR #61 で追加。第2段の EEW 用):
+
+| パラメータ | 内容 |
+| --- | --- |
+| `epi` | 震源の `緯度,経度`(例 `32.7545,130.762`)。✕ マークを置く。緯度 20〜50 / 経度 118〜156 |
+| `int` | 最大震度。`1`〜`4` / `5-` / `5+` / `6-` / `6+` / `7`。**本リポジトリの `INTENSITY_ORDER` と同じ表記**なので変換不要 |
+| `over` | `1` で「震度5弱**以上**」と描く。`forecastMaxInt.to === "over"` のとき用 |
+| `mag` | マグニチュード 0〜10。`7.3` / `M7.3` どちらも可。表示は小数1桁に正規化される |
 
 - 同一県の重複指定は後勝ち
 - 不正値は 400(無視されない。URL組み立てのバグは投稿前に検知できる)
+- `int` / `over` / `mag` は `epi` なしで指定すると 400(ラベルは ✕ に添える形のため)
 - 右上に「●(色丸) 県名」の凡例が**指定順**に最大8件、溢れは「他n県」
+- 震源ラベルは ✕ の右→左→下→上の順に、画像に収まって凡例と重ならない位置に置かれる
 - レスポンスは `cache-control: immutable`。**同一URLは恒久に同一画像**として
   CDN にキャッシュされる(内容を変えたいときは URL を変えるのが前提)
 
@@ -86,6 +97,29 @@ GET https://eew2nostr-viewer.vercel.app/images/alert.webp?pref=13:red&pref=11:ye
 
 ### 第2段: EEW
 
+viewer 側は震源パラメータ(`epi` / `int` / `over` / `mag`)を実装済み(viewer#60)。
+実装は #75(第2段-a: 震源のみ)。
+bot 側は **震源の ✕ だけ先に出す**ことができ、県の塗りは後から足せる。
+
+#### すぐ渡せるもの
+
+`core/parser.ts` の `EEWReport` に既に揃っている。変換は不要:
+
+| 画像APIのパラメータ | EEWReport のフィールド |
+| --- | --- |
+| `epi` | `` `${latitude},${longitude}` `` |
+| `int` | `forecastIntensityValue(forecastFrom, forecast)` |
+| `over` | `forecast === "over"` のとき `1` |
+| `mag` | `magnitude`(数値として解釈できるときだけ) |
+
+- `magnitude` は `"不明"` や `condition` の文字列が入りうる。数値でなければ `mag` を落とす
+- 予想震度が `UNKNOWN_INTENSITY`(`"不明"`)なら `int` / `over` を落とす。
+  ✕ と `M` だけの画像になる
+- `int` は `5-` / `5+` の形のまま渡す。`intensityLabel` で漢字に変換して**から**渡す必要はない
+  (viewer 側が「震度5弱」と描く)
+
+#### まだ足りないもの(県の塗り)
+
 現状 `core/parser.ts` は dmdata EEW 電文から震央地名しか取っておらず、
 警報対象地域(body 内の地域一覧)を捨てている(`eew.ts` の `area` は
 震央地名で code 空)。EEWReport に対象都道府県の抽出を追加してから対応する。
@@ -94,6 +128,17 @@ dmdata の EEW body に都道府県単位の一覧が含まれるかとコード
 
 色は `intensityColor`(予想震度)を県単位に適用する。県ごとの予想震度が
 取れない場合は、電文全体の最大予想震度の色で全対象県を塗る。
+
+#### 段取り
+
+`pref` が0件でも `epi` があれば画像は成立する(震源中心にズームした図になる)。
+そのため EEW は次の順で進められる:
+
+1. **2-a**: `epi` / `int` / `over` / `mag` だけで画像を付ける。地域抽出は不要
+2. **2-b**: EEWReport に対象都道府県の抽出を足し、`pref` を重ねる
+
+第1段の「県が1件も導出できなければ画像なし」というルールは、EEW については
+**震源があれば画像を出す**に緩める。
 
 ### 第3段(任意): 震度速報・津波
 
@@ -117,3 +162,11 @@ dmdata の EEW body に都道府県単位の一覧が含まれるかとコード
 - 3桁コード・code 空(EEW)は無視され、県ゼロなら URL が付かない
 - グラフェム上限ぎりぎりの投稿で URL が欠落しない
 - 生成した URL が画像APIの 400 にならない(結合テストで実URLの形式検証)
+
+EEW(第2段):
+
+- `magnitude` が `"不明"` / condition 文字列のとき `mag` が付かない
+- 予想震度が `"不明"` のとき `int` / `over` が付かず、`epi` だけになる
+- `forecast === "over"` のとき `int=<from>&over=1` になる(`int` に `over` が入らない)
+- `int` が `5-` / `5+` の生の形で渡る(`intensityLabel` を通していない)
+- `pref` が0件でも `epi` があれば URL が付く
