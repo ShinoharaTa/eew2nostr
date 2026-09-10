@@ -1,4 +1,3 @@
-import { format, parseISO } from "date-fns";
 import {
   MAX_SPLIT_POSTS,
   MIN_POSTED_INTENSITY,
@@ -145,13 +144,20 @@ const observedBlocks = (groups: ObservedGroup[], budget: number): string[] => {
   return blocks;
 };
 
+// 気象庁の電文は JST だが、実行環境が JST とは限らない。
+// ホストの TZ 設定に関わらず JST で出す。
+const JST_HHMM = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Tokyo",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 const hhmm = (iso: string | null | undefined): string => {
   if (!iso) return "";
-  try {
-    return format(parseISO(iso), "HH:mm");
-  } catch {
-    return "";
-  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return JST_HHMM.format(date);
 };
 
 const detailText = (alert: ClassifiedAlert, key: string): string | null => {
