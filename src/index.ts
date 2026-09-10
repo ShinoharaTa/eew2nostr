@@ -27,6 +27,7 @@ import {
 } from "./routing/config.js";
 import { Router } from "./routing/router.js";
 import { AlertRecorder } from "./store/alert-recorder.js";
+import { StatusSweeper } from "./store/expiry-sweeper.js";
 import { NostrStatusMirror } from "./store/relay-mirror.js";
 import { SqliteStatusStore } from "./store/sqlite-store.js";
 import { StatusManager } from "./store/status-manager.js";
@@ -60,6 +61,9 @@ const relays = [
 
 // ステータスのミラー先。自前リレーのみに保持する。
 const statusRelays = ["wss://relay-jp.shino3.net"];
+
+// 期限切れスイープの間隔。分単位の精度で足りる情報しか扱わない。
+const SWEEP_INTERVAL_MS = 10 * 60_000;
 
 // 緊急地震速報は気象庁の公開フィードに含まれないため dmdata から受け取る。
 // それ以外 (津波・火山・気象警報など) はこのフィードから取得する。
@@ -122,6 +126,9 @@ const main = async () => {
 
   const recorder = new AlertRecorder(status, router, delivery);
 
+  // 解除電文が来ない情報を、有効期限と種別ごとの寿命で終端に落とす。
+  const sweeper = new StatusSweeper(status);
+
   // 緊急地震速報も気象庁フィードと同じ記録 → 配信の経路に合流させる。
   // 取得層と配信層は内部キューで接続する。
   const pipeline = new EEWPipeline(new EEWParser(), recorder, status, nostr);
@@ -178,6 +185,7 @@ const main = async () => {
   // リレー接続と DB を明示的に閉じてから終了する
   const shutdown = async (code: number) => {
     jma.stop();
+    sweeper.stop();
     disposeAccounts(accounts);
     nostr.dispose();
     await store.close();
@@ -208,6 +216,7 @@ const main = async () => {
     await notifier.notify("success", "EEW System が起動しました", summary);
 
     startHeartbeat(notifier, counters, startedAt);
+    sweeper.start(SWEEP_INTERVAL_MS);
   } catch (error) {
     logger.error("failed to start EEW System", { err: error });
     await notifier.notify("error", "起動に失敗しました", String(error));
