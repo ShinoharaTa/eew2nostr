@@ -575,12 +575,78 @@ export const DEFAULT_ALERT_IMAGE_BASE_URL =
 // 重い色ほど COLOR_TOKENS の前にある
 const tokenWeight = (token: ColorToken): number => COLOR_TOKENS.indexOf(token);
 
+const detailNumber = (alert: ClassifiedAlert, key: string): number | null => {
+  const value = alert.detail[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+};
+
+// 画像APIが受け付ける値の範囲。範囲外は 400 になるため、
+// URL を組み立てる前にこちらで弾く。
+const EPICENTER_BOUNDS = {
+  latitude: [20, 50],
+  longitude: [118, 156],
+  magnitude: [0, 10],
+} as const;
+
+const inBounds = (value: number, [min, max]: readonly [number, number]) =>
+  value >= min && value <= max;
+
+// 緊急地震速報の震源を ✕ で示すパラメータ。
+//
+// EEW は震央地名しか持たず area.code が空のため、先頭2桁規則で県を導出できない。
+// 県の塗りを待たずに震源だけ先に出す (docs/alert-image-integration.md 第2段-a)。
+// 対象都道府県の抽出は第2段-b。
+const epicenterParams = (alerts: ClassifiedAlert[]): string[] => {
+  // 取消報 (cancelled) には付けない。EEW の投稿グループは1件だが、
+  // 最終報は finalized になるので active だけに絞ってはいけない。
+  const alert = alerts.find(
+    (a) =>
+      a.hazard === "eew" && (a.state === "active" || a.state === "finalized"),
+  );
+  if (!alert) return [];
+  const latitude = detailNumber(alert, "latitude");
+  const longitude = detailNumber(alert, "longitude");
+  if (latitude === null || longitude === null) return [];
+  if (!inBounds(latitude, EPICENTER_BOUNDS.latitude)) return [];
+  if (!inBounds(longitude, EPICENTER_BOUNDS.longitude)) return [];
+  const params = [`epi=${latitude},${longitude}`];
+
+  const from = detailText(alert, "forecastFrom") ?? UNKNOWN_INTENSITY;
+  const to = detailText(alert, "forecast") ?? UNKNOWN_INTENSITY;
+  const intensity = forecastIntensityValue(from, to);
+  if (intensity !== UNKNOWN_INTENSITY) {
+    // 震度は 5- / 5+ の生の形で渡す (viewer 側が「震度5弱」と描く)。
+    // "+" はクエリ文字列では空白として解釈されるため必ずエンコードする。
+    params.push(`int=${encodeURIComponent(intensity)}`);
+    // to が "over" のときは from が表示に使われ、「以上」は over で伝える。
+    // これが無いと投稿本文の「震度5弱程度以上」に対して画像が
+    // 「震度5弱」と言い切ってしまい食い違う。
+    if (to === "over") params.push("over=1");
+  }
+
+  // magnitude は magnitude.value ?? magnitude.condition ?? "不明" の順で
+  // 入るため、数値として読めるときだけ付ける。
+  // 空文字を Number() に渡すと 0 になるので、先に空でないことを確かめる。
+  const magnitudeText = detailText(alert, "magnitude")?.trim();
+  const magnitude = Number(magnitudeText);
+  if (
+    magnitudeText &&
+    Number.isFinite(magnitude) &&
+    inBounds(magnitude, EPICENTER_BOUNDS.magnitude)
+  ) {
+    params.push(`mag=${magnitude}`);
+  }
+
+  return params;
+};
+
 // 投稿グループの発令エリアを塗った地図画像の URL を組み立てる。
-// 県が1つも導出できなければ null (画像を付けない)。解除のみの投稿は
+// 県も震源も導出できなければ null (画像を付けない)。解除のみの投稿は
 // state で弾かれるため、発令エリアの視覚強調という目的から外れない。
 //
-// 3桁コード系 (震度速報の地域・津波予報区・火山・河川) と code 空 (EEW) は
-// 先頭2桁規則が使えないため対象外 (docs/alert-image-integration.md の第2・3段)。
+// 3桁コード系 (震度速報の地域・津波予報区・火山・河川) は先頭2桁規則が
+// 使えないため対象外 (docs/alert-image-integration.md の第3段)。
+// code 空の EEW は震源の ✕ で出す (第2段-a)。
 export const alertImageUrl = (
   alerts: ClassifiedAlert[],
   baseUrl: string,
@@ -604,14 +670,15 @@ export const alertImageUrl = (
       byPrefecture.set(prefecture, token);
     }
   }
-  if (byPrefecture.size === 0) return null;
   // 画像の凡例は指定順に出るため、重い色 → 軽い色、同色内は県コード昇順
   const params = [...byPrefecture]
     .sort(
       ([codeA, a], [codeB, b]) =>
         tokenWeight(a) - tokenWeight(b) || Number(codeA) - Number(codeB),
     )
-    .map(([code, token]) => `pref=${code}:${token}`)
-    .join("&");
-  return `${baseUrl.replace(/\/+$/, "")}/images/alert.webp?${params}`;
+    .map(([code, token]) => `pref=${code}:${token}`);
+  // 震源は凡例に出ないため、県の並びを崩さないよう後ろに置く
+  params.push(...epicenterParams(alerts));
+  if (params.length === 0) return null;
+  return `${baseUrl.replace(/\/+$/, "")}/images/alert.webp?${params.join("&")}`;
 };
