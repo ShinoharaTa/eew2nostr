@@ -1,7 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { classify } from "../src/classify";
+import { eewAlert } from "../src/classify/eew";
 import type { ClassifiedAlert } from "../src/classify/types";
+import { EEWParser } from "../src/core/parser";
 import {
   MAX_GRAPHEMES,
   alertImageUrl,
@@ -551,6 +553,141 @@ describe("発令エリアの画像URL", () => {
     expect(alertImageUrl([weather({})], `${BASE}/`)).toBe(
       `${BASE}/images/alert.webp?pref=13:red`,
     );
+  });
+
+  // 第2段-a: EEW は県コードを導出できないため震源の ✕ で出す
+  const eew = (over: Partial<ClassifiedAlert>): ClassifiedAlert => ({
+    key: "eew:1",
+    hazard: "eew",
+    kind: "forecast",
+    severity: "warning",
+    state: "active",
+    headline: "",
+    reportedAt: "2026-09-10T12:00:00+09:00",
+    expiresAt: null,
+    area: { name: "熊本県天草・芦北地方", code: "" },
+    areaType: "震央地名",
+    detail: {
+      latitude: 32.7545,
+      longitude: 130.762,
+      magnitude: "6.1",
+      forecastFrom: "5-",
+      forecast: "5-",
+    },
+    ...over,
+  });
+
+  it("EEW は県が0件でも震源で画像が付く", () => {
+    expect(alertImageUrl([eew({})], BASE)).toBe(
+      `${BASE}/images/alert.webp?epi=32.7545,130.762&int=5-&mag=6.1`,
+    );
+  });
+
+  // "+" はクエリ文字列では空白として解釈されるため、生で渡してはいけない
+  it("震度5強は + をエンコードして渡す", () => {
+    const url = alertImageUrl(
+      [
+        eew({
+          detail: { ...eew({}).detail, forecastFrom: "5+", forecast: "5+" },
+        }),
+      ],
+      BASE,
+    );
+    expect(url).toContain("int=5%2B");
+    expect(url).not.toContain("int=5+");
+  });
+
+  // 投稿本文の「震度5弱程度以上」と画像が食い違わないようにする
+  it("to が over なら int は from・over=1 が付く", () => {
+    const url = alertImageUrl(
+      [
+        eew({
+          detail: { ...eew({}).detail, forecastFrom: "5-", forecast: "over" },
+        }),
+      ],
+      BASE,
+    );
+    expect(url).toContain("int=5-&over=1");
+  });
+
+  it("予想震度が不明なら int も over も付かない", () => {
+    const url = alertImageUrl(
+      [
+        eew({
+          detail: { ...eew({}).detail, forecastFrom: "不明", forecast: "不明" },
+        }),
+      ],
+      BASE,
+    );
+    expect(url).toBe(`${BASE}/images/alert.webp?epi=32.7545,130.762&mag=6.1`);
+  });
+
+  it("マグニチュードが数値でなければ mag が付かない", () => {
+    for (const magnitude of ["不明", "M不明", ""]) {
+      const url = alertImageUrl(
+        [eew({ detail: { ...eew({}).detail, magnitude } })],
+        BASE,
+      );
+      expect(url).toBe(`${BASE}/images/alert.webp?epi=32.7545,130.762&int=5-`);
+    }
+  });
+
+  // 最終報は finalized になるので active だけに絞ってはいけない
+  it("最終報 (finalized) にも画像が付く", () => {
+    expect(alertImageUrl([eew({ state: "finalized" })], BASE)).not.toBeNull();
+  });
+
+  it("取消報には画像を付けない", () => {
+    expect(
+      alertImageUrl([eew({ state: "cancelled", detail: {} })], BASE),
+    ).toBeNull();
+  });
+
+  it("震源の座標が無ければ画像を付けない", () => {
+    expect(alertImageUrl([eew({ detail: {} })], BASE)).toBeNull();
+  });
+
+  // 範囲外は画像APIが 400 を返すため、URL を組み立てる前に弾く
+  it("震源が画像APIの範囲外なら画像を付けない", () => {
+    for (const detail of [
+      { latitude: 12.3, longitude: 130.762 },
+      { latitude: 32.7545, longitude: 90 },
+    ]) {
+      expect(
+        alertImageUrl(
+          [eew({ detail: { ...eew({}).detail, ...detail } })],
+          BASE,
+        ),
+      ).toBeNull();
+    }
+  });
+
+  // 分類まで実電文で通し、URL が画像APIの受け付ける形になることを見る
+  it("実電文の EEW から生成した URL は画像APIの形式に合う", () => {
+    const telegram = JSON.parse(
+      fs.readFileSync(
+        path.join(__dirname, "../sampleData", "eew_single..json"),
+        "utf-8",
+      ),
+    );
+    const parsed = new EEWParser().parse(telegram);
+    if (parsed.type !== "report") throw new Error("report ではない");
+
+    const url = alertImageUrl([eewAlert(parsed.report)], BASE);
+    if (url === null) throw new Error("URL が生成されていない");
+    const query = new URL(url).searchParams;
+
+    const [latitude, longitude] = (query.get("epi") ?? "")
+      .split(",")
+      .map(Number);
+    expect(latitude).toBeGreaterThanOrEqual(20);
+    expect(latitude).toBeLessThanOrEqual(50);
+    expect(longitude).toBeGreaterThanOrEqual(118);
+    expect(longitude).toBeLessThanOrEqual(156);
+    // intensityLabel を通した漢字 (「5弱」など) を渡すと 400 になる
+    expect(query.get("int")).toMatch(/^([0-4]|[5-6][-+]|7)$/);
+    expect(Number(query.get("mag"))).toBeGreaterThan(0);
+    expect(query.get("pref")).toBeNull();
   });
 
   it("URL はハッシュタグの後・FOOTER の前に置かれる", () => {
