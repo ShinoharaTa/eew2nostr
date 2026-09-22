@@ -22,6 +22,16 @@ const KINDS = new Set(["forecast", "observed", "action"]);
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
 
+// プロフィール同期で使う照合用の公開識別子。いずれも公開情報で、
+// 未設定でも配信は動く (その SNS のプロフィール同期だけを見送る)。
+const IDENTIFIERS = {
+  nostr: "npub",
+  bluesky: "handle",
+  concrnt: "ccid",
+} as const;
+
+const NPUB = /^(npub1[0-9a-z]+|[0-9a-f]{64})$/i;
+
 // 設定の不備はその場で落とす。防災システムとして、
 // 黙って一部の配信先が抜けたまま動くより安全。
 export const validateRoutingConfig = (raw: unknown): RoutingConfig => {
@@ -63,6 +73,19 @@ export const validateRoutingConfig = (raw: unknown): RoutingConfig => {
             `アカウント ${key} の ${name} に ${envKey} が指定されていません。`,
           );
         }
+      }
+      const idKey = IDENTIFIERS[name];
+      const identifier = (sns as Record<string, unknown>)[idKey];
+      if (identifier === undefined) continue;
+      if (typeof identifier !== "string" || identifier === "") {
+        throw new Error(
+          `アカウント ${key} の ${name}.${idKey} は空でない文字列にしてください。`,
+        );
+      }
+      if (idKey === "npub" && !NPUB.test(identifier)) {
+        throw new Error(
+          `アカウント ${key} の nostr.npub は npub か64桁の16進数にしてください: ${identifier}`,
+        );
       }
     }
   }

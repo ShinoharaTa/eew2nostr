@@ -104,6 +104,51 @@ describe("SqliteStatusStore", () => {
   });
 });
 
+describe("SqliteStatusStore のプロフィール画像", () => {
+  let store: SqliteStatusStore;
+
+  beforeEach(async () => {
+    store = new SqliteStatusStore(":memory:");
+    await store.init();
+  });
+
+  afterEach(async () => {
+    await store.close();
+  });
+
+  it("未登録なら null を返す", async () => {
+    expect(await store.loadProfileAsset("eew", "avatar")).toBeNull();
+  });
+
+  // 中身のハッシュと BlobRef を控えて、同じ画像を上げ直さない
+  it("保存したハッシュと BlobRef を復元できる", async () => {
+    await store.saveProfileAsset("eew", "avatar", "sha-1", '{"blobId":"1"}');
+
+    expect(await store.loadProfileAsset("eew", "avatar")).toEqual({
+      sha256: "sha-1",
+      blob: '{"blobId":"1"}',
+    });
+  });
+
+  it("同じアカウントと項目の保存は上書きになる", async () => {
+    await store.saveProfileAsset("eew", "avatar", "sha-1", '{"blobId":"1"}');
+    await store.saveProfileAsset("eew", "avatar", "sha-2", '{"blobId":"2"}');
+
+    expect((await store.loadProfileAsset("eew", "avatar"))?.sha256).toBe(
+      "sha-2",
+    );
+  });
+
+  it("項目ごとに別々に持つ", async () => {
+    await store.saveProfileAsset("eew", "avatar", "sha-1", "{}");
+    await store.saveProfileAsset("eew", "banner", "sha-2", "{}");
+
+    expect((await store.loadProfileAsset("eew", "banner"))?.sha256).toBe(
+      "sha-2",
+    );
+  });
+});
+
 describe("StatusManager", () => {
   const newManager = async (mirror = { mirror: jest.fn() }) => {
     const store = new SqliteStatusStore(":memory:");

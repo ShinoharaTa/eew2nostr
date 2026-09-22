@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import dotenv from "dotenv";
 import { EEWParser } from "./core/parser.js";
 import { AsyncQueue } from "./core/queue.js";
@@ -10,6 +11,12 @@ import {
   startupSummary,
 } from "./notifier/status-report.js";
 import {
+  DEFAULT_PROFILE_CONFIG_PATH,
+  loadProfileConfig,
+} from "./profile/profile-config.js";
+import { parseSyncMode, syncProfiles } from "./profile/sync.js";
+import {
+  type AccountClients,
   buildAccounts,
   disposeAccounts,
   initAccounts,
@@ -26,6 +33,7 @@ import {
   loadRoutingConfig,
 } from "./routing/config.js";
 import { Router } from "./routing/router.js";
+import type { RoutingConfig } from "./routing/types.js";
 import { AlertRecorder } from "./store/alert-recorder.js";
 import { StatusSweeper } from "./store/expiry-sweeper.js";
 import { NostrStatusMirror } from "./store/relay-mirror.js";
@@ -42,6 +50,8 @@ const {
   ROUTING_CONFIG_PATH,
   HEARTBEAT_HOURS,
   ALERT_IMAGE_BASE_URL,
+  PROFILE_SYNC,
+  PROFILE_CONFIG_PATH,
 } = process.env;
 
 // .env.sample は未設定の項目を空文字で並べているため、`??` では既定値に
@@ -215,12 +225,53 @@ const main = async () => {
     });
     await notifier.notify("success", "EEW System が起動しました", summary);
 
+    // プロフィールの同期は受信が始まってから。本務は受信なので、
+    // リレーやログインの遅延で受信開始を遅らせない。
+    await syncStartupProfiles(accounts, routingConfig, notifier, store);
+
     startHeartbeat(notifier, counters, startedAt);
     sweeper.start(SWEEP_INTERVAL_MS);
   } catch (error) {
     logger.error("failed to start EEW System", { err: error });
     await notifier.notify("error", "起動に失敗しました", String(error));
     await shutdown(1);
+  }
+};
+
+// config/profile.yaml の内容を各SNSへ反映する。
+// 設定が無ければ何もしない。ここで落ちても受信は続ける。
+const syncStartupProfiles = async (
+  accounts: Map<string, AccountClients>,
+  routing: RoutingConfig,
+  notifier: Notifier,
+  assets: SqliteStatusStore,
+): Promise<void> => {
+  const mode = parseSyncMode(PROFILE_SYNC);
+  if (mode === "off") {
+    logger.info("プロフィールの同期は無効です (PROFILE_SYNC=off)");
+    return;
+  }
+  const path = orDefault(PROFILE_CONFIG_PATH, DEFAULT_PROFILE_CONFIG_PATH);
+  if (!fs.existsSync(path)) {
+    logger.info(`プロフィール設定が無いため同期しません: ${path}`);
+    return;
+  }
+  try {
+    const config = loadProfileConfig(path);
+    const results = await syncProfiles({
+      config,
+      routing,
+      accounts,
+      mode,
+      assets,
+      notifier,
+    });
+    logger.info("プロフィールの同期が終わりました", {
+      mode,
+      results: results.map((r) => `${r.account}/${r.sns}: ${r.status}`),
+    });
+  } catch (e) {
+    logger.error("プロフィールの同期に失敗しました", { err: e });
   }
 };
 

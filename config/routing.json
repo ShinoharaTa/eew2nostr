@@ -1,8 +1,12 @@
 {
+  "_note": "プロフィール同期の照合用に、各アカウントへ公開識別子を持たせる。nostr.npub / bluesky.handle / concrnt.ccid はいずれも公開情報。未設定のままでも同期は動くが、その場合は env の鍵の取り違えを検出できない。nostr.npub は設定済みで、env の秘密鍵から導いた公開鍵と一致しなければ kind 0 を発行しない。bluesky.handle と concrnt.ccid は未設定のため照合していない。",
   "accounts": {
     "eew": {
       "label": "緊急地震速報",
-      "nostr": { "hexEnv": "HEX_EEW" },
+      "nostr": {
+        "hexEnv": "HEX_EEW",
+        "npub": "npub1nyg4dey53tzlmn8n50a8u2eqkyhu7gxj5zaawde2p889zf0nxcrsa0az5y"
+      },
       "bluesky": {
         "identifierEnv": "BSKY_IDENTIFIER_EEW",
         "passwordEnv": "BSKY_PASSWORD_EEW"
@@ -14,7 +18,10 @@
     },
     "emergency": {
       "label": "津波・噴火などの速報",
-      "nostr": { "hexEnv": "HEX_EMERGENCY" },
+      "nostr": {
+        "hexEnv": "HEX_EMERGENCY",
+        "npub": "npub1ymdafpnggzyj9fcgc0uzym2m7ztnu96dch9np64zadudgd94kmmsz6g8kj"
+      },
       "bluesky": {
         "identifierEnv": "BSKY_IDENTIFIER_EMERGENCY",
         "passwordEnv": "BSKY_PASSWORD_EMERGENCY"
@@ -26,7 +33,10 @@
     },
     "warning": {
       "label": "警報",
-      "nostr": { "hexEnv": "HEX_WARNING" },
+      "nostr": {
+        "hexEnv": "HEX_WARNING",
+        "npub": "npub16mp48nv0c7kemnlu68zcwpnq3rgg35y68saznvc4hj3a8wdz4yesml4a5j"
+      },
       "bluesky": {
         "identifierEnv": "BSKY_IDENTIFIER_WARNING",
         "passwordEnv": "BSKY_PASSWORD_WARNING"
@@ -38,7 +48,10 @@
     },
     "observed": {
       "label": "観測情報",
-      "nostr": { "hexEnv": "HEX_OBSERVED" },
+      "nostr": {
+        "hexEnv": "HEX_OBSERVED",
+        "npub": "npub1rnmy52m6xkw9lt2cjpeenm7jhmpvy0r7f2a9vt4gd43grqujz6qsdvywxn"
+      },
       "bluesky": {
         "identifierEnv": "BSKY_IDENTIFIER_OBSERVED",
         "passwordEnv": "BSKY_PASSWORD_OBSERVED"

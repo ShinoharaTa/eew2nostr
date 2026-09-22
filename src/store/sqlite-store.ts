@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { AlertCategory, AlertStatusRecord } from "../core/status.js";
+import type { ProfileAssetRecord } from "../profile/assets.js";
 import type { StatusStore } from "./status-store.js";
 
 interface Row {
@@ -89,6 +90,14 @@ export class SqliteStatusStore implements StatusStore {
       );
       CREATE INDEX IF NOT EXISTS idx_alert_status_unmirrored
         ON alert_status (mirrored_at);
+      CREATE TABLE IF NOT EXISTS profile_assets (
+        account    TEXT NOT NULL,
+        field      TEXT NOT NULL,
+        sha256     TEXT NOT NULL,
+        blob       TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (account, field)
+      );
     `);
     this.migrate();
   }
@@ -189,6 +198,42 @@ export class SqliteStatusStore implements StatusStore {
         "UPDATE alert_status SET mirrored_at = ? WHERE key = ? AND revision = ?",
       )
       .run(new Date().toISOString(), key, revision);
+  }
+
+  // プロフィール画像の同期に使う。URL の中身のハッシュと、
+  // それをアップロードして得た BlobRef を覚えておき、
+  // 中身が変わっていなければ再アップロードしない。
+  async loadProfileAsset(
+    account: string,
+    field: string,
+  ): Promise<ProfileAssetRecord | null> {
+    const row = this.database()
+      .prepare(
+        "SELECT sha256, blob FROM profile_assets WHERE account = ? AND field = ?",
+      )
+      .get(account, field) as unknown as
+      | { sha256: string; blob: string }
+      | undefined;
+    if (!row) return null;
+    return { sha256: row.sha256, blob: row.blob };
+  }
+
+  async saveProfileAsset(
+    account: string,
+    field: string,
+    sha256: string,
+    blob: string,
+  ): Promise<void> {
+    this.database()
+      .prepare(`
+        INSERT INTO profile_assets (account, field, sha256, blob, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(account, field) DO UPDATE SET
+          sha256     = excluded.sha256,
+          blob       = excluded.blob,
+          updated_at = excluded.updated_at
+      `)
+      .run(account, field, sha256, blob, new Date().toISOString());
   }
 
   // 同じ DB ファイルに他のテーブルを置くために使う

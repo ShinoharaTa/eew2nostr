@@ -56,6 +56,7 @@ npm run dev           # ビルドして起動
 | `npm start` | ビルド済みのものを起動 |
 | `npm test` | テスト |
 | `npm run test:post` | テスト投稿 (下記) |
+| `npm run profiles:check` | プロフィール設定の確認 (下記)。何も発行しない |
 | `npm run lint:code` / `npm run fix:style` | Biome |
 
 ### 環境変数
@@ -68,7 +69,28 @@ npm run dev           # ビルドして起動
 | `DISCORD_WEBHOOK_URL` | 起動・稼働報告・エラーの通知先 |
 | `STATUS_DB_PATH` | SQLite の場所。既定 `./data/status.db` |
 | `ROUTING_CONFIG_PATH` | ルーティング設定の場所。既定 `./config/routing.json` |
+| `PROFILE_SYNC` | 起動時のプロフィール同期。`on` / `off` / `dry-run`。既定 `on` |
+| `PROFILE_CONFIG_PATH` | プロフィール設定の場所。既定 `./config/profile.yaml` |
 | `HEARTBEAT_HOURS` | 稼働報告の間隔 (時間)。0 以下で無効。既定 6 |
+
+### プロフィールの同期
+
+`config/profile.yaml` の文面を、起動のたびに各SNSへ反映する。Nostr の kind 0 は
+**このファイルが唯一の真実**になる (手で設定した項目は書いていなければ消える)。
+
+```bash
+npm run profiles:check                  # 発行せず、最終的な文面と照合結果を出す
+npm run profiles:check -- --account=eew # 1アカウントだけ見る
+```
+
+取り違え防止のため、`config/routing.json` の `nostr.npub` / `bluesky.handle` /
+`concrnt.ccid` と、鍵から導いた公開識別子が一致しない経路には発行しない。
+**`nostr.npub` が未設定の経路は kind 0 を発行しない。** 初回は
+`npm run profiles:check` が出す「導出したnpub」を `routing.json` に貼る。
+
+画像は `picture` / `banner` に公開URLを書く。Bluesky だけは blob の
+アップロードが要るため、中身の sha256 を SQLite に控えて、変わっていなければ
+上げ直さない。取得に失敗した画像は既存の値を残す。
 
 ### テスト投稿
 
