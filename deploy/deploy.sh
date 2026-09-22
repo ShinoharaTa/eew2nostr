@@ -17,12 +17,16 @@ FAILED_MARKER="${DEPLOY_FAILED_MARKER:-data/deploy-failed}"
 # (docs/deploy.md の「supervisorctl の権限」を参照)
 SUPERVISORCTL="${SUPERVISORCTL:-supervisorctl}"
 
+# 本番インスタンスはメモリが小さく、jest が事実上止まる。停止中に走らせるため
+# 受信断が無限に伸び、cron では flock で次の実行もブロックされて復旧しない。
+# 検証は CI (.github/workflows/ci.yml) で行う。資源に余裕がある環境なら 1 で戻せる。
+DEPLOY_RUN_TESTS="${DEPLOY_RUN_TESTS:-0}"
+
 # 指定コミットに合わせてビルドまで済ませる。どこかで失敗したら非0を返す
 build_at() {
-  git reset --hard --quiet "$1" &&
-    npm ci --silent &&
-    npm run build &&
-    npm test --silent
+  git reset --hard --quiet "$1" && npm ci --silent && npm run build || return 1
+  [ "$DEPLOY_RUN_TESTS" = "1" ] || return 0
+  npm test --silent
 }
 
 main() {
