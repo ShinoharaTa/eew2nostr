@@ -8,20 +8,16 @@
 # Nostr の kind 0 はこのファイルが唯一の真実になる。ここに書いていない
 # picture / nip05 などを手で設定しても、起動のたびに消える。
 
-# 作者アカウント。本文の {{author}} に入る。
-# TODO: 実値を入れてコメントを外し、各アカウントの about 末尾にある
-#       「作者: {{author}}」の行も一緒に有効にする。
-# author:
-#   nostr: "nostr:npub1..."
-#   bluesky: "https://bsky.app/profile/xxx.bsky.social"
-#   concrnt: "https://concrnt.world/con..."
+# 作者アカウント。本文の {{author}} に入る。投稿先の SNS ごとに出し分ける。
+author:
+  nostr: "nostr:npub1l60d6h2uvdwa9yq0r7r2suhgrnsadcst6nsx2j03xwhxhu2cjyascejxe5"
+  bluesky: "https://bsky.app/profile/shino3.net"
+  concrnt: "https://concrnt.world/profile/con1ljz8zgzsmc6m2l059ujg9q03zh7y5f72kqhfan"
 
 vars:
   site: "https://github.com/ShinoharaTa/eew2nostr"
-  # アイコンとカバーの配信元。
-  # TODO: 公開URLが決まったらコメントを外し、各アカウントの
-  #       picture / banner も一緒に有効にする。
-  # assets: "https://example.com/salmon-alert"
+  # アイコンとカバーの配信元 (shino3-dot-net の salmon-alert/)。
+  assets: "https://shino3.net/salmon-alert"
 
 defaults:
   # サイトURLは Nostr の website で持つ。Bluesky の description には
@@ -39,11 +35,13 @@ accounts:
       発表から数秒で流れますが、遅れや抜けが起きることがあります。身の安全の確保を最優先に、避難の判断はテレビなど公式の情報で行ってください。
 
       ※試験運用中
-    # picture: "{{assets}}/eew-icon-1024.png"
-    # banner: "{{assets}}/eew-cover-1500x500.png"
-    # bluesky:
+
+      作者: {{author}}
+    picture: "{{assets}}/eew-icon-1024.png"
+    banner: "{{assets}}/eew-cover-1500x500.png"
+    bluesky:
       # Bluesky の avatar は 1MB 上限。1024px 版は上限に近いため 400px 版を使う。
-      # picture: "{{assets}}/eew-icon-400.png"
+      picture: "{{assets}}/eew-icon-400.png"
 
   emergency:
     name: salmon_emergency
@@ -54,10 +52,12 @@ accounts:
       出典は気象庁。遅れや抜けが起きることがあります。避難の判断は公式の情報で。
 
       ※試験運用中
-    # picture: "{{assets}}/emergency-icon-1024.png"
-    # banner: "{{assets}}/emergency-cover-1500x500.png"
-    # bluesky:
-      # picture: "{{assets}}/emergency-icon-400.png"
+
+      作者: {{author}}
+    picture: "{{assets}}/emergency-icon-1024.png"
+    banner: "{{assets}}/emergency-cover-1500x500.png"
+    bluesky:
+      picture: "{{assets}}/emergency-icon-400.png"
 
   warning:
     name: salmon_warning
@@ -68,10 +68,12 @@ accounts:
       出典は気象庁。遅れや抜けが起きることがあります。
 
       ※試験運用中
-    # picture: "{{assets}}/warning-icon-1024.png"
-    # banner: "{{assets}}/warning-cover-1500x500.png"
-    # bluesky:
-      # picture: "{{assets}}/warning-icon-400.png"
+
+      作者: {{author}}
+    picture: "{{assets}}/warning-icon-1024.png"
+    banner: "{{assets}}/warning-cover-1500x500.png"
+    bluesky:
+      picture: "{{assets}}/warning-icon-400.png"
 
   observed:
     name: salmon_quake
@@ -82,7 +84,9 @@ accounts:
       これから起きることの予測ではなく、すでに観測されたものです。出典は気象庁。
 
       ※試験運用中
-    # picture: "{{assets}}/observed-icon-1024.png"
-    # banner: "{{assets}}/observed-cover-1500x500.png"
-    # bluesky:
-      # picture: "{{assets}}/observed-icon-400.png"
+
+      作者: {{author}}
+    picture: "{{assets}}/observed-icon-1024.png"
+    banner: "{{assets}}/observed-cover-1500x500.png"
+    bluesky:
+      picture: "{{assets}}/observed-icon-400.png"
