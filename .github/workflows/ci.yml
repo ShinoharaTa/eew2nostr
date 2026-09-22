@@ -1,0 +1,40 @@
+# 本番インスタンスはメモリが小さく jest を実行できないため、デプロイでは
+# テストを回さない (#88)。検証はここで行う。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # engines は >=24。node:sqlite を使うため 18 / 20 では動かない
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - run: npm run lint:code
+
+      - run: npm run lint:style
+
+      # 投稿文の時刻整形がホストの TZ に依存して壊れた経緯があるため
+      # (#73)、両方で回して退行を捕まえる
+      - name: test (TZ=UTC)
+        run: npx jest
+        env:
+          TZ: UTC
+
+      - name: test (TZ=Asia/Tokyo)
+        run: npx jest
+        env:
+          TZ: Asia/Tokyo

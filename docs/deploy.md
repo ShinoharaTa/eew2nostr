@@ -17,12 +17,12 @@ GitHub 側には instance への権限を何も渡さない。
 2. supervisor のプログラムを **stop** (インスタンスが小さく、ビルドと
    常駐プロセスを同居させられないため。停止中は受信断になる)
 3. `git reset --hard origin/main`
-4. `npm ci` → `npm run build` → `npm test`
+4. `npm ci` → `npm run build` (**テストは回さない。後述**)
 5. supervisor のプログラムを start
 
 受信断は再起動の数秒ではなく **ビルド時間まるごと** (npm ci 含め数分) になる。
 
-**ビルドかテストが失敗したら、直前のコミットに戻してビルドし直し、
+**ビルドが失敗したら、直前のコミットに戻してビルドし直し、
 旧版で起動し直す。** 壊れたコードのまま起動することはない。失敗したコミットの
 sha は `data/deploy-failed` に記録され、main が動くまで再試行しない
 (停止→失敗→復旧を繰り返して受信断を積み増さないため)。
@@ -31,6 +31,18 @@ sha は `data/deploy-failed` に記録され、main が動くまで再試行し�
 単一チェックアウトの in-place 更新で、リリースの世代管理はしない。
 `.env` / `data/` / `log/` は gitignore されているため `git reset --hard` でも
 消えない。
+
+## テストはデプロイで回さない
+
+本番インスタンスはメモリが小さく、**jest がプロセス停止中に事実上止まる** (#88)。
+受信断が無限に伸び、cron では `flock` が次の実行もブロックするため復旧しない。
+
+検証は CI (`.github/workflows/ci.yml`) で行う。PR と main への push で
+build / lint / test を `TZ=UTC` と `TZ=Asia/Tokyo` の両方で回す。
+
+デプロイ側は `npm run build` (tsc) までを行う。型エラーによる破綻は引き続き
+検出でき、失敗時のロールバックも効く。資源に余裕のある環境で回したい場合は
+`DEPLOY_RUN_TESTS=1` を渡す。
 
 ## 前提
 
