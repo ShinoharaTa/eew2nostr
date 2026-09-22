@@ -8,8 +8,14 @@
 set -euo pipefail
 
 # 一度ビルドに失敗したコミットを記録し、cron の再試行のたびに
-# 停止→失敗→復旧を繰り返さないようにする (main が進めば再試行する)
-FAILED_MARKER="/tmp/eew2nostr-deploy-failed"
+# 停止→失敗→復旧を繰り返さないようにする (main が進めば再試行する)。
+# /tmp は再起動で消え、壊れたコミットのまま再試行してしまうため data/ に置く。
+FAILED_MARKER="${DEPLOY_FAILED_MARKER:-data/deploy-failed}"
+
+# supervisord のソケットは root 専用のことが多く、実行ユーザーからは
+# supervisorctl を呼べない。sudo を挟めるよう呼び出しごと差し替える
+# (docs/deploy.md の「supervisorctl の権限」を参照)
+SUPERVISORCTL="${SUPERVISORCTL:-supervisorctl}"
 
 # 指定コミットに合わせてビルドまで済ませる。どこかで失敗したら非0を返す
 build_at() {
@@ -21,6 +27,7 @@ build_at() {
 
 main() {
   cd "$(dirname "$(readlink -f "$0")")/.."
+  mkdir -p "$(dirname "$FAILED_MARKER")"
 
   # supervisor に登録したプログラム名。実環境に合わせて上書きできる
   local program="${DEPLOY_PROGRAM:-eew2nostr}"
@@ -44,7 +51,7 @@ main() {
 
   # インスタンスが小さく、ビルドと常駐プロセスを同居させられないため
   # 先に止めてリソースを空ける。ここから start までが受信断になる
-  supervisorctl stop "$program"
+  $SUPERVISORCTL stop "$program"
 
   # .env / data/ / log/ は gitignore されているため reset では消えない
   if build_at "$sha"; then
@@ -58,7 +65,7 @@ main() {
     fi
   fi
 
-  supervisorctl start "$program"
+  $SUPERVISORCTL start "$program"
   echo "deploy: done $(git rev-parse --short HEAD)"
 }
 
