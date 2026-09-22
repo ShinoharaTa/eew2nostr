@@ -1,0 +1,88 @@
+# 各SNSのプロフィール文面。起動時に env の鍵があるアカウントへ反映する。
+# アカウントのキーは config/routing.json と同じ。
+#
+# 解決順は defaults → accounts.<key> → accounts.<key>.<sns> の浅いマージ。
+# 本文中の {{author}} は投稿先の SNS ごとに author の値へ、{{site}} などは
+# vars の値へ展開される。未定義の変数は読み込み時にエラーになる。
+#
+# Nostr の kind 0 はこのファイルが唯一の真実になる。ここに書いていない
+# picture / nip05 などを手で設定しても、起動のたびに消える。
+
+# 作者アカウント。本文の {{author}} に入る。
+# TODO: 実値を入れてコメントを外し、各アカウントの about 末尾にある
+#       「作者: {{author}}」の行も一緒に有効にする。
+# author:
+#   nostr: "nostr:npub1..."
+#   bluesky: "https://bsky.app/profile/xxx.bsky.social"
+#   concrnt: "https://concrnt.world/con..."
+
+vars:
+  site: "https://github.com/ShinoharaTa/eew2nostr"
+  # アイコンとカバーの配信元。
+  # TODO: 公開URLが決まったらコメントを外し、各アカウントの
+  #       picture / banner も一緒に有効にする。
+  # assets: "https://example.com/salmon-alert"
+
+defaults:
+  # サイトURLは Nostr の website で持つ。Bluesky の description には
+  # 入れない (256グラフェムの余裕が無くなる)。
+  website: "{{site}}"
+
+accounts:
+  eew:
+    # name は Nostr のハンドル相当。既存の kind 0 の name は上書きされる。
+    name: salmon_eew
+    displayName: "緊急地震速報 - サーモンアラート"
+    about: |-
+      気象庁の緊急地震速報を自動でお知らせします。震源の位置、マグニチュード、予想される最大震度を地図つきで投稿します。
+
+      発表から数秒で流れますが、遅れや抜けが起きることがあります。身の安全の確保を最優先に、避難の判断はテレビなど公式の情報で行ってください。
+
+      ※試験運用中
+    # picture: "{{assets}}/eew-icon-1024.png"
+    # banner: "{{assets}}/eew-cover-1500x500.png"
+    # bluesky:
+      # Bluesky の avatar は 1MB 上限。1024px 版は上限に近いため 400px 版を使う。
+      # picture: "{{assets}}/eew-icon-400.png"
+
+  emergency:
+    name: salmon_emergency
+    displayName: "津波・噴火 - サーモンアラート"
+    about: |-
+      命に関わる情報だけを流します。大津波警報・津波警報、噴火警報（レベル4以上）、噴火速報、気象の特別警報、線状降水帯、南海トラフ地震臨時情報、震度6弱以上の地震。
+
+      出典は気象庁。遅れや抜けが起きることがあります。避難の判断は公式の情報で。
+
+      ※試験運用中
+    # picture: "{{assets}}/emergency-icon-1024.png"
+    # banner: "{{assets}}/emergency-cover-1500x500.png"
+    # bluesky:
+      # picture: "{{assets}}/emergency-icon-400.png"
+
+  warning:
+    name: salmon_warning
+    displayName: "気象警報 - サーモンアラート"
+    about: |-
+      警報級の情報をお知らせします。大雨・洪水・暴風・大雪などの気象警報、土砂災害警戒情報、氾濫危険情報、津波注意報、噴火警報（レベル3）。注意報は流しません。
+
+      出典は気象庁。遅れや抜けが起きることがあります。
+
+      ※試験運用中
+    # picture: "{{assets}}/warning-icon-1024.png"
+    # banner: "{{assets}}/warning-cover-1500x500.png"
+    # bluesky:
+      # picture: "{{assets}}/warning-icon-400.png"
+
+  observed:
+    name: salmon_quake
+    displayName: "地震 - サーモンアラート"
+    about: |-
+      観測された結果をお知らせします。震度速報、震源・震度に関する情報、長周期地震動、津波の観測値、記録的短時間大雨情報。
+
+      これから起きることの予測ではなく、すでに観測されたものです。出典は気象庁。
+
+      ※試験運用中
+    # picture: "{{assets}}/observed-icon-1024.png"
+    # banner: "{{assets}}/observed-cover-1500x500.png"
+    # bluesky:
+      # picture: "{{assets}}/observed-icon-400.png"

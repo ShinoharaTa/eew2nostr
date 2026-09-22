@@ -217,6 +217,57 @@ describe("validateRoutingConfig", () => {
       }),
     ).toThrow(/passwordEnv/);
   });
+
+  // プロフィール同期の照合に使う公開識別子。既存の設定を壊さないよう任意。
+  it("照合用の識別子は省略できる", () => {
+    expect(() =>
+      validateRoutingConfig({
+        accounts: { main: { nostr: { hexEnv: "HEX" } } },
+        routes: [],
+      }),
+    ).not.toThrow();
+  });
+
+  it("照合用の識別子を持つ設定は通る", () => {
+    const withIds = {
+      accounts: {
+        main: {
+          nostr: { hexEnv: "HEX", npub: "a".repeat(64) },
+          bluesky: {
+            identifierEnv: "ID",
+            passwordEnv: "PW",
+            handle: "main.bsky.social",
+          },
+          concrnt: { subkeyEnv: "SUB", ccid: "con1" },
+        },
+      },
+      routes: [],
+    };
+    expect(validateRoutingConfig(withIds)).toEqual(withIds);
+  });
+
+  // npub が壊れていると突き合わせが働かないため読み込み時に落とす
+  it("公開鍵として読めない npub は例外にする", () => {
+    expect(() =>
+      validateRoutingConfig({
+        accounts: { main: { nostr: { hexEnv: "HEX", npub: "salmon_eew" } } },
+        routes: [],
+      }),
+    ).toThrow(/npub/);
+  });
+
+  it("空のハンドルは例外にする", () => {
+    expect(() =>
+      validateRoutingConfig({
+        accounts: {
+          main: {
+            bluesky: { identifierEnv: "ID", passwordEnv: "PW", handle: "" },
+          },
+        },
+        routes: [],
+      }),
+    ).toThrow(/handle/);
+  });
 });
 
 describe("loadRoutingConfig", () => {

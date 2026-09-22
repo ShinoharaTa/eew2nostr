@@ -1,4 +1,5 @@
 {
+  "_note": "プロフィール同期の照合用に、各アカウントへ公開識別子を持たせる。nostr.npub / bluesky.handle / concrnt.ccid はいずれも公開情報。未設定のままでも同期は動くが、その場合は env の鍵の取り違えを検出できない。値を入れると照合が有効になる。nostr.npub は値が不正だと設定の読み込み自体が失敗するため、`npm run profiles:check` が出す「導出したnpub」を貼ってから各アカウントへ追加する。",
   "accounts": {
     "eew": {
       "label": "緊急地震速報",

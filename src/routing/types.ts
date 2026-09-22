@@ -5,16 +5,23 @@ import type { AlertKind, HazardType, Severity } from "../classify/types.js";
 export interface NostrAccountConfig {
   hexEnv: string;
   relays?: string[];
+  // 照合用の公開鍵。プロフィール同期で、環境変数の秘密鍵から導いた
+  // 公開鍵と突き合わせる。kind 0 は取り違えて発行すると戻せない。
+  npub?: string;
 }
 
 export interface BlueskyAccountConfig {
   identifierEnv: string;
   passwordEnv: string;
+  // 照合用のハンドル。ログイン中のセッションと突き合わせる。
+  handle?: string;
 }
 
 export interface ConcrntAccountConfig {
   subkeyEnv: string;
   channelEnv?: string;
+  // 照合用の CCID。サブキーから解決した ccid と突き合わせる。
+  ccid?: string;
 }
 
 export interface AccountConfig {
